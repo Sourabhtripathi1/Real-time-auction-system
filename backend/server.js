@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { fileURLToPath } from 'url';
+import path, { dirname } from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import connectDB from './config/db.js';
@@ -43,6 +45,11 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ── Static Files (Uploads) ─────────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── API Routes ─────────────────────────────────────────────
 app.use('/api/auth', authRoutes);

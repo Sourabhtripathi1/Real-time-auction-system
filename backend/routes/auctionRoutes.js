@@ -9,10 +9,11 @@ import {
 } from '../controllers/auctionController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { authorizeRoles } from '../middleware/roleMiddleware.js';
+import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
-router.post('/create', protect, authorizeRoles('seller'), createAuction);
+router.post('/create', protect, authorizeRoles('seller'), upload.array('images', 10), createAuction);
 router.get('/live', getLiveAuctions);
 router.get('/pending', protect, authorizeRoles('admin'), getPendingAuctions);
 router.get('/mine', protect, authorizeRoles('seller'), getMyAuctions);

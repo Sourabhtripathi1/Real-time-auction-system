@@ -2,7 +2,7 @@
 
 /* ── Custom theme (Tailwind v4 @theme) ──────────────────── */
 @theme {
-  --color-primary-50: #eef2ff;
+  --color-primary-50:  #eef2ff;
   --color-primary-100: #e0e7ff;
   --color-primary-200: #c7d2fe;
   --color-primary-300: #a5b4fc;
@@ -17,6 +17,9 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ── Dark mode: class-based (Tailwind v4) ─────────────────── */
+@variant dark (&:is(.dark, .dark *));
+
 /* ── Base resets ─────────────────────────────────────────── */
 *,
 *::before,
@@ -27,14 +30,59 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* smooth theme transitions */
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-sans);
+  background-color: #f9fafb; /* gray-50 */
+  color: #111827;            /* gray-900 */
+}
+
+.dark body {
+  background-color: #030712; /* gray-950 */
+  color: #f9fafb;            /* gray-50 */
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* ── Theme transition on all elements ──────────────────── */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Disable transitions on elements that shouldn't animate */
+img, svg, video, canvas {
+  transition: none !important;
+}
+
+/* ── Scrollbar styling ───────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #374151;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
 }

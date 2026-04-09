@@ -4,15 +4,17 @@ import { ApiResponse } from '../utils/ApiResponse.js';
 
 export const createAuction = async (req, res, next) => {
   try {
+
     const {
       title,
       description,
-      images,
       basePrice,
       minIncrement,
       startTime,
       endTime,
     } = req.body;
+
+    const imageUrls = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
 
     if (!title || !basePrice || !minIncrement || !startTime || !endTime) {
       throw new ApiError(400, 'Please provide all required fields');
@@ -21,7 +23,7 @@ export const createAuction = async (req, res, next) => {
     const auction = await Auction.create({
       title,
       description,
-      images,
+      images: imageUrls,
       basePrice,
       minIncrement,
       startTime,

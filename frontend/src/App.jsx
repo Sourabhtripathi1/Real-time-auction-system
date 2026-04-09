@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -14,61 +15,30 @@ import Loader from './components/Loader';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, loading, user } = useAuth();
 
-  if (loading) {
-    return <Loader />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (loading) return <Loader />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
     return <Navigate to="/auctions" replace />;
   }
-
   return children;
 };
 
-// ── App layout with Navbar ─────────────────────────────────
+// ── App layout ─────────────────────────────────────────────
 const AppLayout = () => {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
       <Navbar />
       <main>
         <Routes>
-          {/* Public */}
           <Route path="/" element={<Navigate to="/auctions" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/auctions" element={<AuctionList />} />
 
-          {/* Protected */}
-          <Route
-            path="/auction/:id"
-            element={
-              <ProtectedRoute>
-                <AuctionRoom />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/watchlist"
-            element={
-              <ProtectedRoute>
-                <Watchlist />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/auction/:id" element={<ProtectedRoute><AuctionRoom /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
 
-          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/auctions" replace />} />
         </Routes>
       </main>
@@ -80,11 +50,13 @@ const AppLayout = () => {
 const App = () => {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <SocketProvider>
-          <AppLayout />
-        </SocketProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <SocketProvider>
+            <AppLayout />
+          </SocketProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 };
