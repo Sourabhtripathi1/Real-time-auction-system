@@ -1,0 +1,175 @@
+import Auction from '../models/Auction.js';
+import Bid from '../models/Bid.js';
+import User from '../models/User.js';
+import { ApiError } from '../utils/ApiError.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
+
+const ANTI_SNIPE_THRESHOLD_MS = 10_000;
+const ANTI_SNIPE_EXTENSION_MS = 10_000;
+
+export const placeBid = async (req, res, next) => {
+  try {
+    const { auctionId, amount } = req.body;
+
+    if (!auctionId || amount == null) {
+      throw new ApiError(400, 'Auction ID and bid amount are required');
+    }
+
+    const bidAmount = Number(amount);
+
+    if (Number.isNaN(bidAmount) || bidAmount <= 0) {
+      throw new ApiError(400, 'Bid amount must be a positive number');
+    }
+
+    // ── Step a) Auction must exist ─────────────────────────
+    const auction = await Auction.findById(auctionId);
+
+    if (!auction) {
+      throw new ApiError(404, 'Auction not found');
+    }
+
+    // ── Step b) Must be active ─────────────────────────────
+    if (auction.status !== 'active') {
+      throw new ApiError(400, `Auction is not active (current status: ${auction.status})`);
+    }
+
+    // ── Step c) Within auction time window ─────────────────
+    const now = Date.now();
+
+    if (now < new Date(auction.startTime).getTime()) {
+      throw new ApiError(400, 'Auction has not started yet');
+    }
+
+    if (now > new Date(auction.endTime).getTime()) {
+      throw new ApiError(400, 'Auction has already ended');
+    }
+
+    // ── Step d) Seller cannot bid on own auction ───────────
+    if (req.user._id.toString() === auction.seller.toString()) {
+      throw new ApiError(403, 'Seller cannot bid on their own auction');
+    }
+
+    // ── Step e) Blocked users cannot bid ───────────────────
+    if (req.user.isBlocked) {
+      throw new ApiError(403, 'Your account has been blocked');
+    }
+
+    // ── Step f) Bid must exceed current highest bid ────────
+    if (bidAmount <= auction.currentHighestBid) {
+      throw new ApiError(
+        400,
+        `Bid must be higher than the current highest bid of ${auction.currentHighestBid}`
+      );
+    }
+
+    // ── Step g) Bid must respect minimum increment ─────────
+    if (bidAmount < auction.currentHighestBid + auction.minIncrement) {
+      throw new ApiError(
+        400,
+        `Bid must be at least ${auction.currentHighestBid + auction.minIncrement} (current bid + minimum increment of ${auction.minIncrement})`
+      );
+    }
+
+    // ── Atomic update with race-condition guard ────────────
+    // The condition ensures currentHighestBid hasn't changed since we validated
+    const previousBid = auction.currentHighestBid;
+
+    const updatedAuction = await Auction.findOneAndUpdate(
+      {
+        _id: auctionId,
+        status: 'active',
+        currentHighestBid: previousBid,
+      },
+      {
+        $set: {
+          currentHighestBid: bidAmount,
+          highestBidder: req.user._id,
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedAuction) {
+      throw new ApiError(
+        409,
+        'Bid conflict — another bid was placed simultaneously. Please try again.'
+      );
+    }
+
+    // ── Get io instance once ───────────────────────────────
+    const io = req.app.get('io');
+
+    // ── Anti-sniping: extend if bid placed in final 10s ────
+    let sniped = false;
+
+    const timeRemaining = new Date(updatedAuction.endTime).getTime() - Date.now();
+
+    if (timeRemaining <= ANTI_SNIPE_THRESHOLD_MS) {
+      const newEndTime = new Date(
+        new Date(updatedAuction.endTime).getTime() + ANTI_SNIPE_EXTENSION_MS
+      );
+
+      await Auction.findByIdAndUpdate(auctionId, {
+        $set: { endTime: newEndTime },
+      });
+
+      sniped = true;
+
+      // Emit timer extension to the auction room
+      io.to(`auction_${auctionId}`).emit('timerExtended', {
+        auctionId,
+        newEndTime,
+      });
+    }
+
+    // ── Save Bid document ──────────────────────────────────
+    const bid = await Bid.create({
+      auction: auctionId,
+      bidder: req.user._id,
+      amount: bidAmount,
+      timestamp: new Date(),
+    });
+
+    // ── Socket: broadcast bid update ───────────────────────
+    io.to(`auction_${auctionId}`).emit('bidUpdated', {
+      auctionId,
+      highestBid: bidAmount,
+      highestBidder: { id: req.user._id, name: req.user.name },
+      timestamp: bid.timestamp,
+    });
+
+    // ── Response ───────────────────────────────────────────
+    res.status(201).json(
+      new ApiResponse(
+        201,
+        {
+          bid,
+          currentHighestBid: bidAmount,
+          sniped,
+        },
+        sniped
+          ? 'Bid placed successfully — timer extended due to last-second bid'
+          : 'Bid placed successfully'
+      )
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBidsByAuction = async (req, res, next) => {
+  try {
+    const { auctionId } = req.params;
+
+    const bids = await Bid.find({ auction: auctionId })
+      .populate('bidder', 'name')
+      .sort({ timestamp: -1 })
+      .limit(50);
+
+    res.status(200).json(
+      new ApiResponse(200, bids, 'Bids retrieved successfully')
+    );
+  } catch (error) {
+    next(error);
+  }
+};
