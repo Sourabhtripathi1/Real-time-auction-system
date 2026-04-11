@@ -8,17 +8,17 @@
  *   bidder@auction.com / bidder123
  */
 
-import 'dotenv/config';
-import mongoose from 'mongoose';
-import User from './models/User.js';
-import Auction from './models/Auction.js';
-import Bid from './models/Bid.js';
-import Watchlist from './models/Watchlist.js';
+import "dotenv/config";
+import mongoose from "mongoose";
+import User from "./models/User.js";
+import Auction from "./models/Auction.js";
+import Bid from "./models/Bid.js";
+import Watchlist from "./models/Watchlist.js";
 
 const seed = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ Connected to MongoDB');
+    console.log("✅ Connected to MongoDB");
 
     // ── Clear existing data ────────────────────────────────
     await Promise.all([
@@ -27,70 +27,79 @@ const seed = async () => {
       Bid.deleteMany({}),
       Watchlist.deleteMany({}),
     ]);
-    console.log('🗑  Cleared existing data');
+    console.log("🗑  Cleared existing data");
 
     // ── Create users ───────────────────────────────────────
-    const [admin, seller, bidder] = await User.create([
+
+    var users = [
       {
-        name: 'Admin User',
-        email: 'admin@auction.com',
-        password: 'admin123',
-        role: 'admin',
+        name: "Admin",
+        email: "admin@auction.com",
+        password: "admin123",
+        role: "admin",
       },
       {
-        name: 'Demo Seller',
-        email: 'seller@auction.com',
-        password: 'seller123',
-        role: 'seller',
+        name: "Seller",
+        email: "seller@auction.com",
+        password: "seller123",
+        role: "seller",
       },
       {
-        name: 'Demo Bidder',
-        email: 'bidder@auction.com',
-        password: 'bidder123',
-        role: 'bidder',
+        name: "Bidder",
+        email: "bidder@auction.com",
+        password: "bidder123",
+        role: "bidder",
       },
-    ]);
-    console.log('👥 Created 3 users');
+      {
+        name: "Sourabh",
+        email: "sourabh@gmail.com",
+        password: "sourabh123",
+        role: "bidder",
+      },
+    ];
+
+    const [admin, seller, bidder] = await User.create(users);
+    console.log("👥 Created 3 users");
 
     // ── Create auctions ────────────────────────────────────
     const now = new Date();
 
     const activeAuction = await Auction.create({
-      title: 'Vintage Rolex Submariner 1965',
+      title: "Vintage Rolex Submariner 1965",
       description:
-        'Rare vintage Rolex Submariner in excellent condition. Original dial, hands, and bezel. Comes with original box and papers. A true collector\'s piece.',
+        "Rare vintage Rolex Submariner in excellent condition. Original dial, hands, and bezel. Comes with original box and papers. A true collector's piece.",
       images: [],
       seller: seller._id,
       basePrice: 150000,
       currentHighestBid: 175000,
       highestBidder: bidder._id,
       minIncrement: 5000,
-      startTime: new Date(now.getTime() - 60 * 60 * 1000),    // started 1h ago
-      endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000),  // ends in 2h
-      status: 'active',
+      startTime: new Date(now.getTime() - 60 * 60 * 1000), // started 1h ago
+      endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000), // ends in 2h
+      status: "active",
       approvedBy: admin._id,
     });
 
     const approvedAuction = await Auction.create({
       title: 'MacBook Pro M3 Max 16" — Sealed Box',
       description:
-        'Brand new MacBook Pro with M3 Max chip, 36GB RAM, 1TB SSD. Factory sealed, all accessories included. International warranty.',
+        "Brand new MacBook Pro with M3 Max chip, 36GB RAM, 1TB SSD. Factory sealed, all accessories included. International warranty.",
       images: [],
       seller: seller._id,
       basePrice: 200000,
       currentHighestBid: 200000,
       highestBidder: null,
       minIncrement: 2000,
-      startTime: new Date(now.getTime() + 30 * 60 * 1000),    // starts in 30 min
-      endTime: new Date(now.getTime() + 3 * 60 * 60 * 1000),  // ends in 3h
-      status: 'approved',
+      startTime: new Date(now.getTime() + 30 * 60 * 1000), // starts in 30 min
+      endTime: new Date(now.getTime() + 3 * 60 * 60 * 1000), // ends in 3h
+      status: "approved",
       approvedBy: admin._id,
     });
 
     const pendingAuction = await Auction.create({
-      title: 'Sony A7R V — Mirrorless Camera',
+      title: "Sony A7R V — Mirrorless Camera",
       description:
-        'Sony A7R V in mint condition. Includes original box, charger, strap. Shutter count under 2000.',
+        "Sony A7R V in mint condition. Includes original box, charger, strap. Shutter count under 2000.",
       images: [],
       seller: seller._id,
       basePrice: 280000,
@@ -99,10 +108,10 @@ const seed = async () => {
       minIncrement: 3000,
       startTime: new Date(now.getTime() + 2 * 60 * 60 * 1000),
       endTime: new Date(now.getTime() + 5 * 60 * 60 * 1000),
-      status: 'pending',
+      status: "pending",
     });
 
-    console.log('🏷  Created 3 auctions (1 active, 1 approved, 1 pending)');
+    console.log("🏷  Created 3 auctions (1 active, 1 approved, 1 pending)");
 
     // ── Seed some bid history on the active auction ────────
     await Bid.create([
@@ -125,19 +134,19 @@ const seed = async () => {
         timestamp: new Date(now.getTime() - 10 * 60 * 1000),
       },
     ]);
-    console.log('💰 Seeded 3 bids on the active auction');
+    console.log("💰 Seeded 3 bids on the active auction");
 
-    console.log('\n✨ Seed complete!\n');
-    console.log('─'.repeat(50));
-    console.log('  admin@auction.com   → password: admin123');
-    console.log('  seller@auction.com  → password: seller123');
-    console.log('  bidder@auction.com  → password: bidder123');
-    console.log('─'.repeat(50));
+    console.log("\n✨ Seed complete!\n");
+    console.log("─".repeat(50));
+    users.forEach((user) => {
+      console.log(`  ${user.email}   → password: ${user.password}`);
+    });
+    console.log("─".repeat(50));
 
     await mongoose.disconnect();
     process.exit(0);
   } catch (err) {
-    console.error('❌ Seed failed:', err.message);
+    console.error("❌ Seed failed:", err.message);
     await mongoose.disconnect();
     process.exit(1);
   }
