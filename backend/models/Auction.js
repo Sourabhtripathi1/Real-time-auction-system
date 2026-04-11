@@ -58,10 +58,15 @@ const auctionSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ["pending", "approved", "active", "ended", "rejected"],
+        values: ["inactive", "pending", "approved", "active", "ended", "rejected"],
         message: "{VALUE} is not a valid auction status",
       },
-      default: "pending",
+      default: "inactive",
+    },
+    rejectionReason: {
+      type: String,
+      default: null,
+      trim: true,
     },
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,

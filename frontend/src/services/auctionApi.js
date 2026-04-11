@@ -17,8 +17,8 @@ export const createAuction = async (formData) => {
   return data;
 };
 
-export const approveAuction = async (id, action) => {
-  const { data } = await API.patch(`/auctions/${id}/approve`, { action });
+export const approveAuction = async (id, { action, rejectionReason }) => {
+  const { data } = await API.patch(`/auctions/${id}/approve`, { action, rejectionReason });
   return data;
 };
 
@@ -29,5 +29,22 @@ export const getPendingAuctions = async () => {
 
 export const getMyAuctions = async () => {
   const { data } = await API.get('/auctions/mine');
+  return data;
+};
+
+export const submitForVerification = async (auctionId) => {
+  const { data } = await API.patch(`/auctions/${auctionId}/submit`);
+  return data;
+};
+
+export const updateAuction = async (auctionId, formData) => {
+  const { data } = await API.patch(`/auctions/${auctionId}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
+export const deleteAuction = async (auctionId) => {
+  const { data } = await API.delete(`/auctions/${auctionId}`);
   return data;
 };

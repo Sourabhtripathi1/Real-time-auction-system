@@ -111,7 +111,22 @@ const seed = async () => {
       status: "pending",
     });
 
-    console.log("🏷  Created 3 auctions (1 active, 1 approved, 1 pending)");
+    const inactiveAuction = await Auction.create({
+      title: "Herman Miller Aeron Chair — Ergonomic",
+      description:
+        "Herman Miller Aeron Remastered in Graphite finish. Size B. Fully loaded with PostureFit SL, adjustable arms. Like new condition.",
+      images: [],
+      seller: seller._id,
+      basePrice: 45000,
+      currentHighestBid: 45000,
+      highestBidder: null,
+      minIncrement: 1000,
+      startTime: new Date(now.getTime() + 4 * 60 * 60 * 1000),
+      endTime: new Date(now.getTime() + 8 * 60 * 60 * 1000),
+      status: "inactive",
+    });
+
+    console.log("🏷  Created 4 auctions (1 active, 1 approved, 1 pending, 1 inactive)");
 
     // ── Seed some bid history on the active auction ────────
     await Bid.create([
