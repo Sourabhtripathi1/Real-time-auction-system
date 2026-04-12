@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 
 const inputClass = "w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-transparent transition resize-none";
 
@@ -24,7 +25,7 @@ const RejectAuctionModal = ({ auctionId, auctionTitle, onClose, onSubmit }) => {
     try {
       await onSubmit(auctionId, trimmedReason);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reject auction.');
+      toast.error(err.response?.data?.message || 'Failed to reject auction.');
       setLoading(false);
     }
   };

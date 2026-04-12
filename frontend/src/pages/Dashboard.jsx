@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { toast } from "react-toastify";
 import {
   createAuction,
   getMyAuctions,
@@ -68,29 +69,6 @@ const SkeletonRows = ({ cols = 6, rows = 3 }) =>
     </tr>
   ));
 
-// ── Toast ──────────────────────────────────────────────────
-const Toast = ({ message, type = "info", onClose }) => {
-  const bg =
-    type === "success"
-      ? "bg-emerald-600 dark:bg-emerald-500"
-      : type === "warning"
-        ? "bg-amber-500 dark:bg-amber-600"
-        : type === "error"
-          ? "bg-red-600 dark:bg-red-500"
-          : "bg-primary-600 dark:bg-primary-500";
-
-  return (
-    <div
-      className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 ${bg} text-white rounded-xl shadow-lg transition-all animate-[slideIn_0.3s_ease-out]`}>
-      <span className="text-sm font-medium">{message}</span>
-      <button
-        onClick={onClose}
-        className="ml-1 text-white/70 hover:text-white text-lg leading-none">
-        &times;
-      </button>
-    </div>
-  );
-};
 
 // ── Delete Confirmation Inline ─────────────────────────────
 const DeleteConfirm = ({ onConfirm, onCancel, loading }) => (
@@ -166,6 +144,14 @@ const AuctionActions = ({ auction, onEdit, onSubmit, onDelete }) => {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {status === "rejected" && auction.rejectionReason && (
+        <button
+          onClick={() => alert(`Rejection Reason: ${auction.rejectionReason}`)}
+          className="px-2.5 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-md transition">
+          View Reason
+        </button>
+      )}
+
       {canEdit && (
         <button
           onClick={() => onEdit(auction)}
@@ -210,13 +196,13 @@ const StatusNote = ({ status }) => {
       </p>
     );
   }
-  if (status === "rejected") {
-    return (
-      <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
-        ✕ Rejected — edit and resubmit
-      </p>
-    );
-  }
+  // if (status === "rejected") {
+  //   return (
+  //     <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
+  //       ✕ Rejected — edit and resubmit
+  //     </p>
+  //   );
+  // }
   return null;
 };
 
@@ -226,15 +212,9 @@ const StatusNote = ({ status }) => {
 const SellerDashboard = () => {
   const [myAuctions, setMyAuctions] = useState([]);
   const [tableLoading, setTableLoading] = useState(true);
-  const [toast, setToast] = useState(null);
   const [editingAuction, setEditingAuction] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [fadingOutId, setFadingOutId] = useState(null);
-
-  const showToast = useCallback((text, type = "info") => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 4000);
-  }, []);
 
   const fetchAuctions = useCallback(async () => {
     try {
@@ -254,7 +234,7 @@ const SellerDashboard = () => {
   const handleCreateSave = async (formData) => {
     const res = await createAuction(formData);
     setMyAuctions((prev) => [res.data, ...prev]);
-    showToast(res.message || "Auction created as draft!", "success");
+    toast.success(res.message || "Auction created as draft!");
   };
 
   const handleSubmitForReview = async (auctionId) => {
@@ -265,9 +245,9 @@ const SellerDashboard = () => {
           a._id === auctionId ? { ...a, status: "pending" } : a,
         ),
       );
-      showToast("✅ Submitted for admin review", "success");
+      toast.success("✅ Submitted for admin review");
     } catch (err) {
-      showToast(err.response?.data?.message || "Failed to submit", "error");
+      toast.error(err.response?.data?.message || "Failed to submit");
     }
   };
 
@@ -279,12 +259,11 @@ const SellerDashboard = () => {
       prev.map((a) => (a._id === auctionId ? res.data : a)),
     );
     if (["pending", "rejected"].includes(previousStatus)) {
-      showToast(
+      toast.warning(
         "⚠️ Auction moved to Inactive. Please resubmit for verification.",
-        "warning",
       );
     } else {
-      showToast("✅ Auction updated", "success");
+      toast.success("✅ Auction updated");
     }
   };
 
@@ -296,21 +275,14 @@ const SellerDashboard = () => {
         setMyAuctions((prev) => prev.filter((a) => a._id !== auctionId));
         setFadingOutId(null);
       }, 300);
-      showToast("🗑 Auction deleted", "success");
+      toast.success("🗑 Auction deleted");
     } catch (err) {
-      showToast(err.response?.data?.message || "Failed to delete", "error");
+      toast.error(err.response?.data?.message || "Failed to delete");
     }
   };
 
   return (
     <>
-      {toast && (
-        <Toast
-          message={toast.text}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
       {editingAuction && (
         <EditAuctionModal
           auction={editingAuction}
@@ -351,7 +323,6 @@ const SellerDashboard = () => {
                   "Title",
                   "Base Price",
                   "Status",
-                  "Reason",
                   "Start",
                   "End",
                   "Actions",
@@ -366,11 +337,11 @@ const SellerDashboard = () => {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {tableLoading ? (
-                <SkeletonRows cols={7} />
+                <SkeletonRows cols={6} />
               ) : myAuctions.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-4 py-12 text-center text-gray-400 dark:text-gray-600">
                     You haven&apos;t created any auctions yet.
                   </td>
@@ -397,26 +368,6 @@ const SellerDashboard = () => {
                           </span>
                           <StatusNote status={a.status} />
                         </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-[150px]">
-                        {a.status === "rejected" && a.rejectionReason ? (
-                          <div className="group relative">
-                            <p className="text-xs italic text-red-500 dark:text-red-400 truncate cursor-help">
-                              {a.rejectionReason.length > 80
-                                ? `${a.rejectionReason.substring(0, 80)}...`
-                                : a.rejectionReason}
-                            </p>
-                            {a.rejectionReason.length > 80 && (
-                              <div className="absolute hidden group-hover:block z-50 w-64 p-2 mt-1 -ml-4 bg-gray-900 text-white text-xs rounded-lg shadow-xl dark:bg-gray-800 dark:border dark:border-gray-700 break-words whitespace-normal top-full left-0">
-                                {a.rejectionReason}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 dark:text-gray-600">
-                            —
-                          </span>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
                         {formatDate(a.startTime)}
@@ -452,12 +403,6 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [rejectModalAuction, setRejectModalAuction] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = useCallback((text, type = "info") => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 4000);
-  }, []);
 
   useEffect(() => {
     getPendingAuctions()
@@ -471,9 +416,9 @@ const AdminDashboard = () => {
     try {
       await approveAuction(id, { action: "approve" });
       setPending((prev) => prev.filter((a) => a._id !== id));
-      showToast("✅ Auction approved successfully", "success");
+      toast.success("✅ Auction approved successfully");
     } catch {
-      showToast("❌ Failed to approve auction", "error");
+      toast.error("❌ Failed to approve auction");
     } finally {
       setActionLoading(null);
     }
@@ -483,19 +428,11 @@ const AdminDashboard = () => {
     await approveAuction(id, { action: "reject", rejectionReason: reason });
     setPending((prev) => prev.filter((a) => a._id !== id));
     setRejectModalAuction(null);
-    showToast("❌ Auction rejected with reason provided", "success");
+    toast.success("❌ Auction rejected with reason provided");
   };
 
   return (
     <>
-      {toast && (
-        <Toast
-          message={toast.text}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
       {rejectModalAuction && (
         <RejectAuctionModal
           auctionId={rejectModalAuction._id}
@@ -623,6 +560,17 @@ const BidderDashboard = () => {
 // ═══════════════════════════════════════════════════════════
 const Dashboard = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.state?.message) {
+      toast.error(location.state.message);
+      // Clear state so reload doesn't trigger toast again
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
+
   const roleLabels = {
     seller: "Seller Dashboard",
     admin: "Admin Dashboard",

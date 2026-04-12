@@ -51,28 +51,31 @@ const Navbar = () => {
             </Link>
 
             <div className="hidden sm:flex items-center gap-1">
-              <Link
-                to="/auctions"
-                className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 rounded-lg transition-all"
-              >
-                Auctions
-              </Link>
+              {(!isAuthenticated || user?.role === 'bidder') && (
+                <Link
+                  to="/auctions"
+                  className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 rounded-lg transition-all"
+                >
+                  Auctions
+                </Link>
+              )}
 
               {isAuthenticated && (
-                <>
-                  <Link
-                    to="/dashboard"
-                    className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 rounded-lg transition-all"
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    to="/watchlist"
-                    className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 rounded-lg transition-all"
-                  >
-                    Watchlist
-                  </Link>
-                </>
+                <Link
+                  to="/dashboard"
+                  className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 rounded-lg transition-all"
+                >
+                  Dashboard
+                </Link>
+              )}
+
+              {isAuthenticated && user?.role === 'bidder' && (
+                <Link
+                  to="/watchlist"
+                  className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 rounded-lg transition-all"
+                >
+                  Watchlist
+                </Link>
               )}
             </div>
           </div>

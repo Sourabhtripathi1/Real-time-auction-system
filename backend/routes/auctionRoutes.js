@@ -11,7 +11,7 @@ import {
   deleteAuction,
 } from '../controllers/auctionController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import { authorizeRoles } from '../middleware/roleMiddleware.js';
+import { authorizeRoles, restrictRoles } from '../middleware/roleMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
@@ -23,7 +23,7 @@ router.patch('/:id', protect, authorizeRoles('seller'), upload.array('images', 1
 router.delete('/:id', protect, authorizeRoles('seller'), deleteAuction);
 
 // Public routes
-router.get('/live', getLiveAuctions);
+router.get('/live', restrictRoles('admin', 'seller'), getLiveAuctions);
 
 // Admin routes
 router.get('/pending', protect, authorizeRoles('admin'), getPendingAuctions);

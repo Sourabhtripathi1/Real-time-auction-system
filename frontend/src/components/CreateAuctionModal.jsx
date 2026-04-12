@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 
 const inputClass = "w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-transparent transition";
 const labelClass = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5";
@@ -14,14 +15,12 @@ const CreateAuctionModal = ({ onClose, onSave }) => {
   });
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
@@ -29,7 +28,7 @@ const CreateAuctionModal = ({ onClose, onSave }) => {
       await onSave(fd);
       onClose();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create auction');
+      toast.error(err.response?.data?.message || 'Failed to create auction');
     } finally {
       setLoading(false);
     }
@@ -64,11 +63,6 @@ const CreateAuctionModal = ({ onClose, onSave }) => {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {error && (
-            <div className="px-4 py-3 rounded-lg text-sm border bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400">
-              {error}
-            </div>
-          )}
 
           <div>
             <label className={labelClass}>Title</label>

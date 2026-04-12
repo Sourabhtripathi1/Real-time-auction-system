@@ -19,3 +19,14 @@ export const authorizeRoles = (...roles) => {
     next();
   };
 };
+
+export const restrictRoles = (...roles) => {
+  return (req, res, next) => {
+    if (req.user && roles.includes(req.user.role)) {
+      return next(
+        new ApiError(403, 'Access denied. Your role cannot perform this action.')
+      );
+    }
+    next();
+  };
+};

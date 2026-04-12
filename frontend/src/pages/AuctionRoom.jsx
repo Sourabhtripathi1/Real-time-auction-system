@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { getAuctionById } from '../services/auctionApi';
@@ -9,14 +10,6 @@ import useBid from '../hooks/useBid';
 import CountdownTimer from '../components/CountdownTimer';
 import BidHistory from '../components/BidHistory';
 import Loader from '../components/Loader';
-
-// ── Toast ──────────────────────────────────────────────────
-const Toast = ({ message, onClose }) => (
-  <div className="fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 bg-amber-500 dark:bg-amber-600 text-white rounded-xl shadow-lg animate-bounce">
-    <span>{message}</span>
-    <button onClick={onClose} className="ml-1 text-white/80 hover:text-white text-lg leading-none">&times;</button>
-  </div>
-);
 
 // ── Image Carousel ─────────────────────────────────────────
 const ImageCarousel = ({ images }) => {
@@ -64,18 +57,10 @@ const AuctionRoom = () => {
   const [viewers, setViewers] = useState(1);
   const [winner, setWinner] = useState(null);
   const [auctionEnded, setAuctionEnded] = useState(false);
-  const [toast, setToast] = useState('');
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistDone, setWatchlistDone] = useState(false);
-  const toastTimer = useRef(null);
 
   const { bidAmount, setBidAmount, bidError, bidLoading, bidSuccess, placeBid } = useBid();
-
-  const showToast = useCallback((msg) => {
-    setToast(msg);
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 4000);
-  }, []);
 
   // Initial load
   useEffect(() => {
@@ -111,7 +96,7 @@ const AuctionRoom = () => {
       setHighestBidder(bidder);
       setBids((prev) => [{ _id: `live_${Date.now()}`, bidder, amount: highestBid, timestamp: timestamp || new Date().toISOString() }, ...prev.slice(0, 49)]);
     };
-    const onTimerExtended = ({ newEndTime }) => { setEndTime(newEndTime); showToast('⏱ Timer extended by 10 seconds!'); };
+    const onTimerExtended = ({ newEndTime }) => { setEndTime(newEndTime); toast.info('⏱ Timer extended by 10 seconds!'); };
     const onAuctionEnded = ({ winnerName, finalBid }) => {
       setAuctionEnded(true);
       setAuction((prev) => prev ? { ...prev, status: 'ended' } : prev);
@@ -136,8 +121,8 @@ const AuctionRoom = () => {
   const handlePlaceBid = async (e) => { e.preventDefault(); await placeBid(auctionId, bidAmount); };
   const handleAddWatchlist = async () => {
     setWatchlistLoading(true);
-    try { await addToWatchlist(auctionId); setWatchlistDone(true); showToast('❤️ Added to your watchlist!'); }
-    catch (err) { showToast(err.response?.data?.message || 'Failed to add to watchlist'); }
+    try { await addToWatchlist(auctionId); setWatchlistDone(true); toast.success('❤️ Added to your watchlist!'); }
+    catch (err) { toast.error(err.response?.data?.message || 'Failed to add to watchlist'); }
     finally { setWatchlistLoading(false); }
   };
 
@@ -155,7 +140,6 @@ const AuctionRoom = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {toast && <Toast message={toast} onClose={() => setToast('')} />}
 
       {/* Winner Banner */}
       {winner && (
