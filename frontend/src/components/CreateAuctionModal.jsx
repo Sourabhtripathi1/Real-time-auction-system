@@ -14,7 +14,32 @@ const CreateAuctionModal = ({ onClose, onSave }) => {
     endTime: '',
   });
   const [images, setImages] = useState([]);
+  const [previewUrls, setPreviewUrls] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const handleImageSelect = (e) => {
+    const files = Array.from(e.target.files);
+    
+    if (files.length > 5) {
+      toast.error('Maximum 5 images allowed');
+      return;
+    }
+
+    const validFiles = [];
+    const newPreviewUrls = [];
+
+    for (let file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`File ${file.name} is too large. Max 5MB.`);
+        return;
+      }
+      validFiles.push(file);
+      newPreviewUrls.push(URL.createObjectURL(file));
+    }
+
+    setImages(validFiles);
+    setPreviewUrls(newPreviewUrls);
+  };
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -34,9 +59,15 @@ const CreateAuctionModal = ({ onClose, onSave }) => {
     }
   };
 
+  // Clean up object URLs to avoid memory leaks
+  const handleClose = () => {
+    previewUrls.forEach(URL.revokeObjectURL);
+    onClose();
+  };
+
   // Close on backdrop click
   const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) onClose();
+    if (e.target === e.currentTarget) handleClose();
   };
 
   return (
@@ -54,7 +85,7 @@ const CreateAuctionModal = ({ onClose, onSave }) => {
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           >
             ✕
@@ -97,21 +128,32 @@ const CreateAuctionModal = ({ onClose, onSave }) => {
           </div>
 
           <div>
-            <label className={labelClass}>Images</label>
+            <label className={labelClass}>
+              Images <span className="font-normal text-gray-500">({images.length} / 5 selected)</span>
+            </label>
             <input
               type="file"
               multiple
-              accept="image/*"
-              onChange={(e) => setImages([...e.target.files])}
+              accept=".jpg,.jpeg,.png,.webp"
+              onChange={handleImageSelect}
               className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 dark:file:bg-primary-950/40 file:text-primary-700 dark:file:text-primary-400 hover:file:bg-primary-100 dark:hover:file:bg-primary-950/60 transition"
             />
+            {previewUrls.length > 0 && (
+              <div className="mt-3 grid grid-cols-5 gap-2">
+                {previewUrls.map((url, i) => (
+                  <div key={i} className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <img src={url} alt="preview" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Footer */}
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition"
             >
               Cancel

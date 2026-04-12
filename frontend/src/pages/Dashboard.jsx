@@ -146,7 +146,7 @@ const AuctionActions = ({ auction, onEdit, onSubmit, onDelete }) => {
     <div className="flex flex-wrap items-center gap-1.5">
       {status === "rejected" && auction.rejectionReason && (
         <button
-          onClick={() => alert(`Rejection Reason: ${auction.rejectionReason}`)}
+          onClick={() => toast.error(`Rejection Reason: ${auction.rejectionReason}`, { autoClose: 8000 })}
           className="px-2.5 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-md transition">
           View Reason
         </button>

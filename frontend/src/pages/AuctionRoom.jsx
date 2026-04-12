@@ -27,7 +27,7 @@ const ImageCarousel = ({ images }) => {
 
   return (
     <div className="relative w-full h-64 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
-      <img src={`${import.meta.env.VITE_SOCKET_URL}${images[current]}`} alt={`Auction image ${current + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+      <img src={images[current]?.url} alt={`Auction image ${current + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
       {images.length > 1 && (
         <>
           <button onClick={() => setCurrent((c) => (c - 1 + images.length) % images.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition">‹</button>

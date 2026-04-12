@@ -16,10 +16,15 @@ const auctionSchema = new mongoose.Schema(
       default: "",
     },
     images: {
-      type: [String],
+      type: [
+        {
+          url: { type: String, required: true },
+          publicId: { type: String, required: true }
+        }
+      ],
       validate: {
-        validator: (arr) => arr.length <= 10,
-        message: "Cannot upload more than 10 images",
+        validator: (arr) => arr.length <= 5,
+        message: "Cannot upload more than 5 images",
       },
       default: [],
     },

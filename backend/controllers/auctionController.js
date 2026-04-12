@@ -3,12 +3,16 @@ import Bid from '../models/Bid.js';
 import Watchlist from '../models/Watchlist.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
+import { deleteFromCloudinary } from '../config/cloudinary.js';
 
 // ── Create Auction (status: inactive) ──────────────────────
 export const createAuction = async (req, res, next) => {
   try {
     const { title, description, basePrice, minIncrement, startTime, endTime } = req.body;
-    const imageUrls = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+    const images = req.files ? req.files.map(file => ({
+      url: file.path,
+      publicId: file.filename
+    })) : [];
 
     if (!title || !basePrice || !minIncrement || !startTime || !endTime) {
       throw new ApiError(400, 'Please provide all required fields');
@@ -17,7 +21,7 @@ export const createAuction = async (req, res, next) => {
     const auction = await Auction.create({
       title,
       description,
-      images: imageUrls,
+      images,
       basePrice,
       minIncrement,
       startTime,
@@ -92,7 +96,13 @@ export const updateAuction = async (req, res, next) => {
 
     // Handle new images if uploaded
     if (req.files && req.files.length > 0) {
-      auction.images = req.files.map(file => `/uploads/${file.filename}`);
+      if (auction.images && auction.images.length > 0) {
+        await Promise.all(auction.images.map(img => deleteFromCloudinary(img.publicId)));
+      }
+      auction.images = req.files.map(file => ({
+        url: file.path,
+        publicId: file.filename
+      }));
     }
 
     // If was pending or rejected, reset to inactive
@@ -129,7 +139,11 @@ export const deleteAuction = async (req, res, next) => {
       throw new ApiError(400, 'Active or ended auctions cannot be deleted');
     }
 
-    // Cleanup associated documents
+    // Cleanup associated documents and images
+    if (auction.images && auction.images.length > 0) {
+      await Promise.all(auction.images.map(img => deleteFromCloudinary(img.publicId)));
+    }
+
     await Promise.all([
       Bid.deleteMany({ auction: auction._id }),
       Watchlist.deleteMany({ auction: auction._id }),
