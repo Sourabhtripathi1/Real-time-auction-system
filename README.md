@@ -1,6 +1,6 @@
-# Auction System — Real-Time MERN Stack
+# Real-Time Auction System — MERN Stack
 
-A production-grade, full-stack real-time auction platform built with the **MERN stack** (MongoDB, Express, React, Node.js) and **Socket.IO** for live bidding.
+A production-grade, full-stack real-time auction platform built with the **MERN stack** (MongoDB, Express, React, Node.js), **Socket.IO** for live bidding, and **Cloudinary** for cloud image management.
 
 ---
 
@@ -12,13 +12,29 @@ A production-grade, full-stack real-time auction platform built with the **MERN 
 - ⚡ **Real-Time Bidding** — Live bid updates pushed to all viewers via Socket.IO
 - 🛡️ **Anti-Sniping** — Bids placed in the final 10 seconds automatically extend the timer
 - 🔒 **Race Condition Prevention** — Atomic MongoDB `findOneAndUpdate` with optimistic concurrency guard
-- 📋 **Admin Approvals** — Sellers submit auctions; admins approve/reject before they go live
+- 📋 **Admin Approval Workflow** — Sellers submit auctions for review; admins approve/reject with mandatory rejection reasons
 - 🔍 **Auction Watchlist** — Bidders can save and track auctions
 - ⏱️ **Auction Lifecycle Scheduler** — Background process activates and ends auctions automatically
+- ☁️ **Cloudinary Image Management** — Upload, transform, and auto-delete auction images on the cloud
+- 🖼️ **Interactive Image Slider** — Custom-built carousel with touch/swipe, keyboard navigation, thumbnails, and autoplay
+- 🃏 **Card Grid Layout** — Modern auction browsing with live status badges, compact countdown timers, and bid flash animations
+- 🔔 **Toast Notifications** — `react-toastify` for all success, error, and warning messages
+- 🌓 **Dark / Light Mode** — Full theme support across all pages
+
+### Auction Lifecycle
+```
+inactive → (seller submits) → pending → (admin approves) → approved → (scheduler activates) → active → ended
+                                          ↓ (admin rejects)
+                                        rejected → (seller edits & resubmits) → inactive
+```
 
 ### Technical Highlights
 - **Atomic bid writes** — prevents double-spend with MongoDB conditional updates
 - **Socket.IO rooms** — each auction has its own broadcast room (`auction_<id>`)
+- **Real-time card updates** — bid changes and auction endings update individual cards without full re-fetch
+- **Cloudinary integration** — `multer-storage-cloudinary` for seamless upload pipeline with auto-transforms
+- **Image deletion** — old images are automatically purged from Cloudinary when auctions are updated or deleted
+- **Frontend validation** — file size (5MB), count (5 max), and type (jpg/png/webp) checks before upload
 - **Mongoose 9** — production models with indexes, pre-hooks, and validation
 - **Tailwind CSS v4** — utility-first CSS with custom `@theme` design tokens
 - **Vite + React 18** — fast HMR development experience
@@ -35,10 +51,12 @@ A production-grade, full-stack real-time auction platform built with the **MERN 
 | Routing | React Router DOM v6 |
 | HTTP Client | Axios (with JWT interceptors) |
 | Real-Time | Socket.IO client |
+| Notifications | react-toastify |
 | Backend | Node.js, Express 5 |
 | Database | MongoDB with Mongoose 9 |
 | Real-Time | Socket.IO server |
 | Auth | JSON Web Tokens (JWT) + bcryptjs |
+| Image Storage | Cloudinary (v2) + Multer + multer-storage-cloudinary |
 | Dev Tools | Nodemon, Concurrently |
 
 ---
@@ -52,68 +70,79 @@ Real-time-auction-system/
 ├── backend/
 │   ├── package.json          ← Backend dependencies
 │   ├── server.js             ← Express + Socket.IO + Scheduler
-│   ├── seed.js               ← Database seed script
+│   ├── seed.js               ← Database seed script (uploads images to Cloudinary)
 │   ├── .env                  ← Backend environment variables (git-ignored)
 │   ├── .env.example          ← Environment variable template
 │   ├── config/
-│   │   └── db.js             ← MongoDB connection
+│   │   ├── db.js             ← MongoDB connection
+│   │   ├── cloudinary.js     ← Cloudinary v2 configuration + deleteFromCloudinary helper
+│   │   └── multer.js         ← Multer with CloudinaryStorage (5MB, 5 files, jpg/png/webp)
 │   ├── controllers/
 │   │   ├── authController.js
-│   │   ├── auctionController.js
+│   │   ├── auctionController.js  ← Create/update/delete with Cloudinary upload & cleanup
 │   │   ├── bidController.js
 │   │   └── watchlistController.js
 │   ├── middleware/
 │   │   ├── authMiddleware.js  ← JWT verification
-│   │   ├── roleMiddleware.js  ← RBAC guard
+│   │   ├── roleMiddleware.js  ← RBAC guard (authorizeRoles + restrictRoles)
 │   │   └── errorMiddleware.js ← Global error handler
 │   ├── models/
 │   │   ├── User.js
-│   │   ├── Auction.js
+│   │   ├── Auction.js         ← images: [{ url, publicId }], rejectionReason field
 │   │   ├── Bid.js
 │   │   └── Watchlist.js
 │   ├── routes/
 │   │   ├── authRoutes.js
-│   │   ├── auctionRoutes.js
+│   │   ├── auctionRoutes.js   ← Multer error handler for upload failures
 │   │   ├── bidRoutes.js
 │   │   └── watchlistRoutes.js
 │   ├── socket/
-│   │   └── socketHandler.js  ← Room join/leave + viewer counts
+│   │   └── socketHandler.js   ← Room join/leave + viewer counts
 │   └── utils/
 │       ├── ApiError.js
 │       └── ApiResponse.js
 │
 └── frontend/
     ├── package.json
-    ├── .env                  ← Frontend environment variables (git-ignored)
-    ├── .env.example          ← Environment variable template
+    ├── .env                   ← Frontend environment variables (git-ignored)
+    ├── .env.example           ← Environment variable template
     ├── vite.config.js
     └── src/
-        ├── App.jsx           ← Router + Provider stack
+        ├── App.jsx            ← Router + RoleProtectedRoute + GuestRoute
         ├── main.jsx
-        ├── index.css         ← Tailwind v4 + custom theme
+        ├── index.css          ← Tailwind v4 + custom theme
         ├── context/
-        │   ├── AuthContext.jsx   ← User/token state + localStorage
-        │   └── SocketContext.jsx ← Auto-connect on auth, room helpers
+        │   ├── AuthContext.jsx    ← User/token state + localStorage
+        │   └── SocketContext.jsx  ← Auto-connect on auth, room helpers
         ├── hooks/
-        │   ├── useCountdown.js   ← Live countdown with anti-snipe restart
-        │   └── useBid.js         ← Bid placement state machine
+        │   ├── useCountdown.js    ← Live countdown with anti-snipe restart
+        │   └── useBid.js          ← Bid placement state machine
         ├── services/
-        │   ├── authApi.js        ← Axios instance + interceptors
-        │   ├── auctionApi.js
+        │   ├── authApi.js         ← Axios instance + interceptors
+        │   ├── auctionApi.js      ← FormData for image uploads
         │   ├── bidApi.js
         │   └── watchlistApi.js
         ├── components/
-        │   ├── Navbar.jsx
-        │   ├── CountdownTimer.jsx
+        │   ├── Navbar.jsx             ← Role-aware navigation links
+        │   ├── ImageSlider.jsx        ← Reusable carousel (arrows, dots, thumbnails, swipe, keyboard)
+        │   ├── AuctionCard.jsx        ← Card with live status badge, countdown, bid flash animation
+        │   ├── LightboxModal.jsx      ← Full-screen image viewer overlay
+        │   ├── CountdownTimer.jsx     ← Full countdown with urgency colors
         │   ├── BidHistory.jsx
+        │   ├── CreateAuctionModal.jsx ← Image preview + validation (5 files, 5MB each)
+        │   ├── EditAuctionModal.jsx   ← Current images display + replacement flow
+        │   ├── RejectAuctionModal.jsx ← Rejection reason input (10–500 chars)
+        │   ├── AdminAuctionDetailsModal.jsx
         │   └── Loader.jsx
+        ├── socket/
+        │   └── socket.js
         └── pages/
             ├── Login.jsx
             ├── Register.jsx
-            ├── AuctionList.jsx   ← Table with search/filter, auto-refresh
-            ├── AuctionRoom.jsx   ← Full real-time auction page
-            ├── Dashboard.jsx     ← Role-based: seller/admin/bidder
-            └── Watchlist.jsx     ← Watchlist card grid
+            ├── AuctionList.jsx    ← Card grid with search, filter tabs, sort, real-time socket updates
+            ├── AuctionRoom.jsx    ← Full real-time auction page with ImageSlider
+            ├── Dashboard.jsx      ← Role-based: seller (image thumbnails + lightbox) / admin / bidder
+            └── Watchlist.jsx      ← Watchlist card grid
 ```
 
 ---
@@ -126,6 +155,7 @@ Real-time-auction-system/
 - **MongoDB** running locally on port `27017`
   - [Download MongoDB Community](https://www.mongodb.com/try/download/community)
   - Or use [MongoDB Atlas](https://www.mongodb.com/atlas) (update `MONGO_URI` in `.env`)
+- **Cloudinary account** — [Sign up free](https://cloudinary.com/users/register_free)
 
 ### 1. Clone the Repository
 
@@ -165,7 +195,8 @@ cp frontend/.env.example frontend/.env
 
 ### 4. Seed the Database
 
-Populates MongoDB with 3 test users and sample auctions:
+Populates MongoDB with test users and 15 sample auctions (10 active + 1 of each other status).
+Uploads 3 sample product images to your Cloudinary account automatically.
 
 ```bash
 npm run seed
@@ -176,8 +207,9 @@ npm run seed
 | `admin@auction.com` | `admin123` | Admin |
 | `seller@auction.com` | `seller123` | Seller |
 | `bidder@auction.com` | `bidder123` | Bidder |
+| `sourabh@gmail.com` | `sourabh123` | Bidder |
 
-> ⚠️ **Warning:** Running seed clears all existing data.
+> ⚠️ **Warning:** Running seed clears all existing data and uploads fresh images to Cloudinary.
 
 ### 5. Start the Application
 
@@ -204,6 +236,11 @@ JWT_SECRET=your_super_secret_key_change_this
 JWT_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5173
 NODE_ENV=development
+
+# Cloudinary (required for image uploads)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
 
 | Variable | Description |
@@ -214,6 +251,9 @@ NODE_ENV=development
 | `JWT_EXPIRES_IN` | Token expiry duration (e.g. `7d`, `24h`) |
 | `CLIENT_URL` | Frontend origin for CORS |
 | `NODE_ENV` | `development` or `production` |
+| `CLOUDINARY_CLOUD_NAME` | Your Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | Your Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Your Cloudinary API secret |
 
 ### `frontend/.env`
 
@@ -232,7 +272,7 @@ VITE_SOCKET_URL=http://localhost:5000
 ## 🔌 Socket.IO Event Reference
 
 | Event | Direction | Payload |
-|-------|-----------|---------|
+|-------|-----------|---------| 
 | `joinAuction` | Client → Server | `{ auctionId, userId }` |
 | `leaveAuction` | Client → Server | `{ auctionId }` |
 | `bidUpdated` | Server → Room | `{ auctionId, highestBid, highestBidder: { id, name }, timestamp }` |
@@ -254,9 +294,12 @@ VITE_SOCKET_URL=http://localhost:5000
 ### Auctions
 | Method | Route | Access | Description |
 |--------|-------|--------|-------------|
-| `GET` | `/api/auctions/live` | Public | List all active auctions |
+| `GET` | `/api/auctions/live` | Bidder | List all active auctions |
 | `GET` | `/api/auctions/:id` | Public | Get auction by ID |
-| `POST` | `/api/auctions/create` | Seller | Create a new auction |
+| `POST` | `/api/auctions/create` | Seller | Create auction (multipart/form-data, up to 5 images) |
+| `PATCH` | `/api/auctions/:id` | Seller | Update auction (replaces images on Cloudinary) |
+| `DELETE` | `/api/auctions/:id` | Seller | Delete auction (removes images from Cloudinary) |
+| `PATCH` | `/api/auctions/:id/submit` | Seller | Submit auction for admin review |
 | `GET` | `/api/auctions/pending` | Admin | List pending auctions |
 | `PATCH` | `/api/auctions/:id/approve` | Admin | Approve or reject auction |
 | `GET` | `/api/auctions/mine` | Seller | Get seller's own auctions |
@@ -265,7 +308,7 @@ VITE_SOCKET_URL=http://localhost:5000
 | Method | Route | Access | Description |
 |--------|-------|--------|-------------|
 | `POST` | `/api/bids/place` | Bidder | Place a bid |
-| `GET` | `/api/bids/:auctionId` | Public | Get bid history |
+| `GET` | `/api/bids/:auctionId` | Bidder | Get bid history |
 
 ### Watchlist
 | Method | Route | Access | Description |
@@ -285,7 +328,7 @@ npm run dev          # Start backend + frontend concurrently
 npm run server       # Backend only (nodemon)
 npm run client       # Frontend only (Vite)
 npm run build        # Production build (frontend)
-npm run seed         # Seed database with test data
+npm run seed         # Seed database with test data + Cloudinary images
 npm run install:all  # Install all dependencies (root + backend + frontend)
 ```
 
@@ -309,7 +352,7 @@ User places bid
   → Atomic findOneAndUpdate (currentHighestBid condition prevents race conditions)
   → If bid placed in final 10s → extend endTime by 10s → emit "timerExtended"
   → Emit "bidUpdated" to auction room
-  → All connected clients update UI instantly
+  → All connected clients update UI instantly (card flash animation on AuctionList)
 ```
 
 ### Auction Lifecycle (Scheduler)
@@ -320,6 +363,30 @@ Every 60 seconds:
   2. Find active auctions with endTime <= now → set status: "ended"
      → Emit "auctionEnded" to room with winner info
 ```
+
+### Image Upload Flow
+
+```
+Seller creates/edits auction with images
+  → Frontend validates: max 5 files, max 5MB each, jpg/png/webp only
+  → FormData sent to backend via multipart/form-data
+  → Multer + CloudinaryStorage uploads to "auction-system" folder
+  → Cloudinary auto-transforms: 1200×800 limit, auto quality, auto format
+  → Response: [{ url: "https://res.cloudinary.com/...", publicId: "auction-system/..." }]
+  → On update: old images deleted from Cloudinary via deleteFromCloudinary()
+  → On auction delete: all images purged from Cloudinary
+```
+
+### Role-Based Access Control
+
+| Page | Admin | Seller | Bidder |
+|------|-------|--------|--------|
+| `/dashboard` | ✅ | ✅ | ✅ |
+| `/auctions` | ❌ | ❌ | ✅ |
+| `/auction/:id` | ❌ | ❌ | ✅ |
+| `/watchlist` | ❌ | ❌ | ✅ |
+| `/login` | ✅ | ✅ | ✅ |
+| `/register` | ✅ | ✅ | ✅ |
 
 ---
 
@@ -339,4 +406,4 @@ This project is licensed under the **ISC License**.
 
 ---
 
-<p align="center">Built with ❤️ using the MERN Stack + Socket.IO</p>
+<p align="center">Built with ❤️ using the MERN Stack + Socket.IO + Cloudinary</p>
