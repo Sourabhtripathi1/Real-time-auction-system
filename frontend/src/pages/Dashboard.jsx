@@ -14,6 +14,7 @@ import {
 import EditAuctionModal from "../components/EditAuctionModal";
 import CreateAuctionModal from "../components/CreateAuctionModal";
 import RejectAuctionModal from "../components/RejectAuctionModal";
+import AdminAuctionDetailsModal from "../components/AdminAuctionDetailsModal";
 
 // ── Status styling + labels ────────────────────────────────
 const STATUS_CONFIG = {
@@ -403,6 +404,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [rejectModalAuction, setRejectModalAuction] = useState(null);
+  const [reviewModalAuction, setReviewModalAuction] = useState(null);
 
   useEffect(() => {
     getPendingAuctions()
@@ -416,6 +418,7 @@ const AdminDashboard = () => {
     try {
       await approveAuction(id, { action: "approve" });
       setPending((prev) => prev.filter((a) => a._id !== id));
+      setReviewModalAuction(null);
       toast.success("✅ Auction approved successfully");
     } catch {
       toast.error("❌ Failed to approve auction");
@@ -425,10 +428,18 @@ const AdminDashboard = () => {
   };
 
   const submitReject = async (id, reason) => {
-    await approveAuction(id, { action: "reject", rejectionReason: reason });
-    setPending((prev) => prev.filter((a) => a._id !== id));
-    setRejectModalAuction(null);
-    toast.success("❌ Auction rejected with reason provided");
+    setActionLoading(id);
+    try {
+      await approveAuction(id, { action: "reject", rejectionReason: reason });
+      setPending((prev) => prev.filter((a) => a._id !== id));
+      setRejectModalAuction(null);
+      setReviewModalAuction(null);
+      toast.success("❌ Auction rejected with reason provided");
+    } catch {
+      toast.error("❌ Failed to reject auction");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -439,6 +450,16 @@ const AdminDashboard = () => {
           auctionTitle={rejectModalAuction.title}
           onClose={() => setRejectModalAuction(null)}
           onSubmit={submitReject}
+        />
+      )}
+
+      {reviewModalAuction && (
+        <AdminAuctionDetailsModal
+          auction={reviewModalAuction}
+          onClose={() => setReviewModalAuction(null)}
+          onApprove={handleApprove}
+          onReject={submitReject}
+          loading={actionLoading === reviewModalAuction._id}
         />
       )}
 
@@ -496,6 +517,12 @@ const AdminDashboard = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => setReviewModalAuction(a)}
+                          disabled={actionLoading === a._id}
+                          className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 rounded-lg transition disabled:opacity-50">
+                          Review
+                        </button>
                         <button
                           onClick={() => handleApprove(a._id)}
                           disabled={actionLoading === a._id}

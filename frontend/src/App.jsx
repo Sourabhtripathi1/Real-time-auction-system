@@ -75,7 +75,7 @@ const AppLayout = () => {
           <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
           
-          <Route path="/auctions" element={<RoleProtectedRoute allowedRoles={['bidder']}><AuctionList /></RoleProtectedRoute>} />
+          <Route path="/auctions" element={<AuctionList />} />
           <Route path="/auction/:id" element={<RoleProtectedRoute allowedRoles={['bidder']}><AuctionRoom /></RoleProtectedRoute>} />
           <Route path="/watchlist" element={<RoleProtectedRoute allowedRoles={['bidder']}><Watchlist /></RoleProtectedRoute>} />
           
