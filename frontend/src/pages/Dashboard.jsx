@@ -15,6 +15,7 @@ import EditAuctionModal from "../components/EditAuctionModal";
 import CreateAuctionModal from "../components/CreateAuctionModal";
 import RejectAuctionModal from "../components/RejectAuctionModal";
 import AdminAuctionDetailsModal from "../components/AdminAuctionDetailsModal";
+import LightboxModal from "../components/LightboxModal";
 
 // ── Status styling + labels ────────────────────────────────
 const STATUS_CONFIG = {
@@ -216,6 +217,7 @@ const SellerDashboard = () => {
   const [editingAuction, setEditingAuction] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [fadingOutId, setFadingOutId] = useState(null);
+  const [lightboxImages, setLightboxImages] = useState(null);
 
   const fetchAuctions = useCallback(async () => {
     try {
@@ -299,6 +301,13 @@ const SellerDashboard = () => {
         />
       )}
 
+      {lightboxImages && (
+        <LightboxModal
+          images={lightboxImages}
+          onClose={() => setLightboxImages(null)}
+        />
+      )}
+
       {/* My Auctions Table */}
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
@@ -321,6 +330,7 @@ const SellerDashboard = () => {
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-800">
                 {[
+                  "Image",
                   "Title",
                   "Base Price",
                   "Status",
@@ -338,11 +348,11 @@ const SellerDashboard = () => {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {tableLoading ? (
-                <SkeletonRows cols={6} />
+                <SkeletonRows cols={7} />
               ) : myAuctions.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-12 text-center text-gray-400 dark:text-gray-600">
                     You haven&apos;t created any auctions yet.
                   </td>
@@ -355,6 +365,32 @@ const SellerDashboard = () => {
                     <tr
                       key={a._id}
                       className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all duration-300 ${fadingOutId === a._id ? "opacity-0 scale-95" : "opacity-100"}`}>
+                      {/* Image Preview */}
+                      <td className="px-4 py-3">
+                        {a.images?.length > 0 ? (
+                          <button
+                            onClick={() => setLightboxImages(a.images)}
+                            className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0 group cursor-pointer"
+                          >
+                            <img
+                              src={a.images[0].url}
+                              alt={a.title}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
+                            />
+                            {a.images.length > 1 && (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">+{a.images.length - 1}</span>
+                              </div>
+                            )}
+                          </button>
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white max-w-[200px] truncate">
                         {a.title}
                       </td>

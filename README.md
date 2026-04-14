@@ -46,7 +46,7 @@ A production-grade, full-stack real-time auction platform built with the **MERN 
 ## 📁 Project Structure
 
 ```
-auction-system/
+Real-time-auction-system/
 ├── package.json              ← Root runner (concurrently only)
 │
 ├── backend/
@@ -131,7 +131,7 @@ auction-system/
 
 ```bash
 git clone https://github.com/Sourabhtripathi1/Real-time-auction-system.git
-cd auction-system
+cd Real-time-auction-system
 ```
 
 ### 2. Install Dependencies

@@ -9,37 +9,8 @@ import { addToWatchlist } from '../services/watchlistApi';
 import useBid from '../hooks/useBid';
 import CountdownTimer from '../components/CountdownTimer';
 import BidHistory from '../components/BidHistory';
+import ImageSlider from '../components/ImageSlider';
 import Loader from '../components/Loader';
-
-// ── Image Carousel ─────────────────────────────────────────
-const ImageCarousel = ({ images }) => {
-  const [current, setCurrent] = useState(0);
-
-  if (!images?.length) {
-    return (
-      <div className="w-full h-64 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-        <svg className="w-16 h-16 text-gray-300 dark:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative w-full h-64 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
-      <img src={images[current]?.url} alt={`Auction image ${current + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
-      {images.length > 1 && (
-        <>
-          <button onClick={() => setCurrent((c) => (c - 1 + images.length) % images.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition">‹</button>
-          <button onClick={() => setCurrent((c) => (c + 1) % images.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition">›</button>
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-            {images.map((_, i) => <button key={i} onClick={() => setCurrent(i)} className={`w-1.5 h-1.5 rounded-full transition ${i === current ? 'bg-white' : 'bg-white/40'}`} />)}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
 
 // ── Main AuctionRoom ───────────────────────────────────────
 const AuctionRoom = () => {
@@ -162,7 +133,14 @@ const AuctionRoom = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight">{auction?.title}</h1>
           </div>
 
-          <ImageCarousel images={auction?.images} />
+          <ImageSlider
+            images={auction?.images}
+            height="h-80"
+            showDots={true}
+            showThumbnails={true}
+            autoPlay={false}
+            rounded="rounded-2xl"
+          />
 
           {auction?.description && (
             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
