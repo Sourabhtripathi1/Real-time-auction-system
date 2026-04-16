@@ -113,7 +113,7 @@ const AuctionCard = ({ auction, onJoin, currentHighestBid: liveBid, isEnded: liv
             {auction.title}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            by {auction.seller?.name || '—'}
+            by {auction.seller?.name || "—"}
           </p>
         </div>
 
@@ -123,60 +123,65 @@ const AuctionCard = ({ auction, onJoin, currentHighestBid: liveBid, isEnded: liv
             Current Bid
           </p>
           <div className="flex items-baseline gap-2">
-            <span className={`font-bold text-xl text-indigo-600 dark:text-indigo-400 transition-all duration-300 ${bidFlash ? 'scale-110 text-indigo-500' : ''}`}>
-              ₹{(hasBids ? bidAmount : auction.basePrice)?.toLocaleString('en-IN')}
+            <span
+              className={`font-bold text-xl text-indigo-600 dark:text-indigo-400 transition-all duration-300 ${bidFlash ? "scale-110 text-indigo-500" : ""}`}>
+              ₹
+              {(hasBids ? bidAmount : auction.basePrice)?.toLocaleString(
+                "en-IN",
+              )}
             </span>
             {!hasBids && (
-              <span className="text-sm text-gray-400 dark:text-gray-500">(Starting)</span>
+              <span className="text-sm text-gray-400 dark:text-gray-500">
+                (Starting)
+              </span>
             )}
           </div>
         </div>
 
         {/* Min Increment */}
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Min Increment: ₹{auction.minIncrement?.toLocaleString('en-IN')}
+          Min Increment: ₹{auction.minIncrement?.toLocaleString("en-IN")}
         </p>
 
         {/* Countdown */}
-        {status === 'active' && (
+        {status === "active" && (
           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
             <span>⏱</span>
             <span>Ends in:</span>
             <CompactTimer endTime={auction.endTime} />
           </div>
         )}
-        {status === 'ended' && (
-          <p className="text-xs font-semibold text-red-500 dark:text-red-400">🔴 Auction Ended</p>
+        {status === "ended" && (
+          <p className="text-xs font-semibold text-red-500 dark:text-red-400">
+            🔴 Auction Ended
+          </p>
         )}
 
         {/* Stats Row */}
-        <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 pt-1">
+        {/* <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 pt-1">
           <span>🏷 ID: #{auction._id?.slice(-6).toUpperCase()}</span>
-        </div>
+        </div> */}
 
         {/* Spacer to push button to bottom */}
         <div className="flex-1" />
 
         {/* Action Button */}
-        {status === 'active' ? (
+        {status === "active" ? (
           <button
             onClick={() => onJoin(auction._id)}
-            className="w-full py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl transition-colors shadow-sm"
-          >
+            className="w-full py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl transition-colors shadow-sm">
             Join Auction →
           </button>
-        ) : status === 'ended' ? (
+        ) : status === "ended" ? (
           <button
             disabled
-            className="w-full py-2.5 text-sm font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-xl cursor-not-allowed"
-          >
+            className="w-full py-2.5 text-sm font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-xl cursor-not-allowed">
             Auction Ended
           </button>
         ) : (
           <button
             disabled
-            className="w-full py-2.5 text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl cursor-not-allowed"
-          >
+            className="w-full py-2.5 text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl cursor-not-allowed">
             Starting Soon...
           </button>
         )}

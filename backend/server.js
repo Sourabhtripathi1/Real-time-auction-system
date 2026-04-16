@@ -13,6 +13,7 @@ import authRoutes from './routes/authRoutes.js';
 import auctionRoutes from './routes/auctionRoutes.js';
 import bidRoutes from './routes/bidRoutes.js';
 import watchlistRoutes from './routes/watchlistRoutes.js';
+import profileRoutes from './routes/profileRoutes.js';
 
 // ── Process-level error safety nets ───────────────────────
 process.on('uncaughtException', (err) => {
@@ -56,6 +57,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/bids', bidRoutes);
 app.use('/api/watchlist', watchlistRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date() }));

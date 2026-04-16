@@ -160,7 +160,8 @@ export const deleteAuction = async (req, res, next) => {
 export const getLiveAuctions = async (req, res, next) => {
   try {
     const auctions = await Auction.find({ status: 'active' })
-      .populate('seller', 'name')
+      .populate('seller', 'name profileImage')
+      .populate('highestBidder', 'name profileImage')
       .sort({ endTime: 1 });
 
     res.status(200).json(
@@ -175,8 +176,8 @@ export const getLiveAuctions = async (req, res, next) => {
 export const getAuctionById = async (req, res, next) => {
   try {
     const auction = await Auction.findById(req.params.id)
-      .populate('seller', 'name email')
-      .populate('highestBidder', 'name');
+      .populate('seller', 'name email profileImage')
+      .populate('highestBidder', 'name profileImage');
 
     if (!auction) {
       throw new ApiError(404, 'Auction not found');
@@ -246,7 +247,7 @@ export const approveAuction = async (req, res, next) => {
 export const getPendingAuctions = async (req, res, next) => {
   try {
     const auctions = await Auction.find({ status: 'pending' })
-      .populate('seller', 'name')
+      .populate('seller', 'name profileImage')
       .sort({ createdAt: -1 });
 
     res.status(200).json(

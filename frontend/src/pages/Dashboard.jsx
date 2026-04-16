@@ -542,8 +542,22 @@ const AdminDashboard = () => {
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                       {a.title}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {a.seller?.name || "—"}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {a.seller?.profileImage?.url ? (
+                          <img
+                            src={a.seller.profileImage.url}
+                            alt={a.seller.name}
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                            className="w-7 h-7 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-200 dark:ring-gray-700"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-700 dark:text-indigo-400 text-xs font-bold flex-shrink-0">
+                            {(a.seller?.name || 'S')[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">{a.seller?.name || '—'}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                       ₹{a.basePrice?.toLocaleString()}

@@ -12,6 +12,29 @@ import BidHistory from '../components/BidHistory';
 import ImageSlider from '../components/ImageSlider';
 import Loader from '../components/Loader';
 
+// ── Seller chip with avatar ────────────────────────────────
+const SellerChip = ({ seller }) => {
+  const [imgErr, setImgErr] = useState(false);
+  const imgUrl = seller?.profileImage?.url;
+  const initial = (seller?.name || 'S')[0].toUpperCase();
+  return (
+    <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full px-4 py-2">
+      {imgUrl && !imgErr ? (
+        <img src={imgUrl} alt={seller?.name} onError={() => setImgErr(true)}
+          className="w-7 h-7 rounded-full object-cover ring-1 ring-white dark:ring-gray-900 flex-shrink-0" />
+      ) : (
+        <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold text-sm flex-shrink-0">
+          {initial}
+        </div>
+      )}
+      <div>
+        <span className="text-xs text-gray-400 dark:text-gray-500 block leading-none">Seller</span>
+        <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{seller?.name || '—'}</span>
+      </div>
+    </div>
+  );
+};
+
 // ── Main AuctionRoom ───────────────────────────────────────
 const AuctionRoom = () => {
   const { id: auctionId } = useParams();
@@ -150,15 +173,7 @@ const AuctionRoom = () => {
           )}
 
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full px-4 py-2">
-              <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-950/60 flex items-center justify-center text-primary-700 dark:text-primary-400 font-bold text-sm">
-                {(auction?.seller?.name || 'S')[0].toUpperCase()}
-              </div>
-              <div>
-                <span className="text-xs text-gray-400 dark:text-gray-500 block leading-none">Seller</span>
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{auction?.seller?.name || '—'}</span>
-              </div>
-            </div>
+            <SellerChip seller={auction?.seller} />
 
             <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full px-4 py-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />

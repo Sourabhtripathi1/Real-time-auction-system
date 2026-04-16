@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import jwt from 'jsonwebtoken';
+import { updateLastLogin } from './profileController.js';
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -58,6 +59,9 @@ export const login = async (req, res, next) => {
     }
 
     const token = generateToken(user._id);
+
+    // Update last login timestamp (non-blocking)
+    updateLastLogin(user._id);
 
     user.password = undefined;
 

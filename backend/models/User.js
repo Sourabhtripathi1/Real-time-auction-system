@@ -41,11 +41,45 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // ── Profile fields ─────────────────────────────────────
+    contactNumber: {
+      type: String,
+      trim: true,
+      match: [
+        /^[0-9]{10,15}$/,
+        "Enter a valid contact number (10-15 digits)",
+      ],
+      default: null,
+    },
+    profileImage: {
+      type: {
+        url: { type: String },
+        publicId: { type: String },
+      },
+      default: null,
+    },
+    address: {
+      street:  { type: String, trim: true, default: null },
+      city:    { type: String, trim: true, default: null },
+      state:   { type: String, trim: true, default: null },
+      pincode: { type: String, trim: true, default: null },
+      country: { type: String, trim: true, default: "India" },
+    },
+    lastLogin: {
+      type: Date,
+      default: null,
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: true },
     strict: true,
     toJSON: {
+      virtuals: true,
       transform(_doc, ret) {
         delete ret.password;
         delete ret.__v;
@@ -53,6 +87,7 @@ const userSchema = new mongoose.Schema(
       },
     },
     toObject: {
+      virtuals: true,
       transform(_doc, ret) {
         delete ret.password;
         delete ret.__v;
@@ -62,18 +97,28 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// ── Virtual: profileCompletion (0–100) ─────────────────────
+userSchema.virtual("profileCompletion").get(function () {
+  let score = 0;
+  if (this.name)                 score += 20;
+  if (this.contactNumber)        score += 20;
+  if (this.profileImage?.url)    score += 20;
+  if (this.address?.city)        score += 20;
+  if (this.address?.state)       score += 20;
+  return score;
+});
+
 // ── Indexes ────────────────────────────────────────────────
-// email unique index is already created by `unique: true` in the schema field
 userSchema.index({ role: 1 });
 
-// ── Pre-save hook: hash password (Mongoose 9 — no next in async middleware) ──
+// ── Pre-save hook: hash password ───────────────────────────
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
   const salt = await bcrypt.genSalt(SALT_ROUNDS);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// ── Instance method: compare password ──────────────────────
+// ── Instance method: compare password ─────────────────────
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };

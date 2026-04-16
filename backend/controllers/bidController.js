@@ -162,7 +162,7 @@ export const getBidsByAuction = async (req, res, next) => {
     const { auctionId } = req.params;
 
     const bids = await Bid.find({ auction: auctionId })
-      .populate('bidder', 'name')
+      .populate('bidder', 'name profileImage')
       .sort({ timestamp: -1 })
       .limit(50);
 

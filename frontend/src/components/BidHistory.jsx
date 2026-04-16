@@ -1,3 +1,4 @@
+// ── Helpers ────────────────────────────────────────────────
 const formatRelative = (timestamp) => {
   const diff = Date.now() - new Date(timestamp).getTime();
   const s = Math.floor(diff / 1000);
@@ -8,6 +9,39 @@ const formatRelative = (timestamp) => {
   if (h < 24) return `${h}h ago`;
   return new Date(timestamp).toLocaleDateString();
 };
+
+// ── Mini Avatar ────────────────────────────────────────────
+const MiniAvatar = ({ user, isMe }) => {
+  const [imgError, setImgError] = useState(false);
+  const imgUrl = user?.profileImage?.url;
+  const initial = (user?.name || 'U')[0].toUpperCase();
+
+  if (imgUrl && !imgError) {
+    return (
+      <img
+        src={imgUrl}
+        alt={user?.name}
+        onError={() => setImgError(true)}
+        className="shrink-0 w-7 h-7 rounded-full object-cover ring-1 ring-white dark:ring-gray-900"
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ring-1 ring-white dark:ring-gray-900 ${
+        isMe
+          ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+          : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+      }`}
+    >
+      {initial}
+    </div>
+  );
+};
+
+// ── BidHistory ─────────────────────────────────────────────
+import { useState } from 'react';
 
 const BidHistory = ({ bids = [], currentUserId }) => {
   if (bids.length === 0) {
@@ -24,31 +58,22 @@ const BidHistory = ({ bids = [], currentUserId }) => {
   return (
     <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800 pr-1">
       {bids.map((bid, idx) => {
-        const isMe = bid.bidder?._id === currentUserId || bid.bidder === currentUserId;
+        const isMe     = bid.bidder?._id === currentUserId || bid.bidder === currentUserId;
         const isLatest = idx === 0;
 
         return (
           <div
             key={bid._id || idx}
-            className={`flex items-center justify-between py-2.5 px-2 rounded-lg transition-all duration-300
-              ${isMe
-                ? 'bg-primary-50 dark:bg-primary-950/40'
+            className={`flex items-center justify-between py-2.5 px-2 rounded-lg transition-all duration-300 ${
+              isMe
+                ? 'bg-indigo-50 dark:bg-indigo-950/40'
                 : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
-              }
-            `}
+            }`}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <div
-                className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
-                  ${isMe
-                    ? 'bg-primary-600 dark:bg-primary-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                  }`}
-              >
-                {(bid.bidder?.name || 'U')[0].toUpperCase()}
-              </div>
+              <MiniAvatar user={bid.bidder} isMe={isMe} />
               <div className="min-w-0">
-                <span className={`block text-sm font-medium truncate ${isMe ? 'text-primary-700 dark:text-primary-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                <span className={`block text-sm font-medium truncate ${isMe ? 'text-indigo-700 dark:text-indigo-400' : 'text-gray-800 dark:text-gray-200'}`}>
                   {isMe ? 'You' : bid.bidder?.name || 'Anonymous'}
                 </span>
                 <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -63,7 +88,7 @@ const BidHistory = ({ bids = [], currentUserId }) => {
                   Top
                 </span>
               )}
-              <span className={`text-sm font-bold ${isMe ? 'text-primary-700 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>
+              <span className={`text-sm font-bold ${isMe ? 'text-indigo-700 dark:text-indigo-400' : 'text-gray-900 dark:text-white'}`}>
                 ₹{bid.amount?.toLocaleString('en-IN')}
               </span>
             </div>
