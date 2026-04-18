@@ -6,6 +6,7 @@ import {
   getAuctionById,
   approveAuction,
   getPendingAuctions,
+  getAllAuctions,
   getMyAuctions,
   submitForVerification,
   updateAuction,
@@ -28,8 +29,9 @@ router.get('/live', restrictRoles('admin', 'seller'), getLiveAuctions);
 
 // Admin routes
 router.get('/pending', protect, authorizeRoles('admin'), getPendingAuctions);
+router.get('/all',     protect, authorizeRoles('admin'), getAllAuctions);
 
-// Seller routes  
+// Seller routes
 router.get('/mine', protect, authorizeRoles('seller'), getMyAuctions);
 
 // Parameterized routes (must be after string routes)

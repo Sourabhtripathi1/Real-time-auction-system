@@ -3,6 +3,7 @@ import Bid from '../models/Bid.js';
 import User from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
+import { paginateQuery, buildPaginationMeta } from '../utils/paginateQuery.js';
 
 const ANTI_SNIPE_THRESHOLD_MS = 10_000;
 const ANTI_SNIPE_EXTENSION_MS = 10_000;
@@ -168,6 +169,50 @@ export const getBidsByAuction = async (req, res, next) => {
 
     res.status(200).json(
       new ApiResponse(200, bids, 'Bids retrieved successfully')
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── GET /api/bids/my-bids (Bidder) ────────────────────────
+export const getMyBids = async (req, res, next) => {
+  try {
+    const { page, limit, search, sortBy, sortOrder } = req.query;
+    const { pageNum, limitNum, skip } = paginateQuery(page, limit);
+
+    const filter = { bidder: req.user._id };
+
+    // Optional: filter bids by matching auction title
+    if (search?.trim()) {
+      const matchedAuctions = await Auction.find(
+        { title: { $regex: search.trim(), $options: 'i' } },
+        '_id'
+      ).lean();
+      filter.auction = { $in: matchedAuctions.map(a => a._id) };
+    }
+
+    // Whitelist sort fields
+    const allowedSortFields = new Set(['timestamp', 'amount']);
+    const safeSortField = allowedSortFields.has(sortBy) ? sortBy : 'timestamp';
+    const safeSortOrder = sortOrder === 'asc' ? 1 : -1;
+    const sort = { [safeSortField]: safeSortOrder };
+
+    const [bids, total] = await Promise.all([
+      Bid.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum)
+        .populate('auction', 'title status currentHighestBid endTime images')
+        .lean(),
+      Bid.countDocuments(filter),
+    ]);
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        bids,
+        pagination: buildPaginationMeta(total, pageNum, limitNum),
+      }, 'Your bids retrieved successfully')
     );
   } catch (error) {
     next(error);

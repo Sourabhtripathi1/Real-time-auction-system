@@ -1,9 +1,57 @@
 import Auction from '../models/Auction.js';
 import Bid from '../models/Bid.js';
+import User from '../models/User.js';
 import Watchlist from '../models/Watchlist.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { deleteFromCloudinary } from '../config/cloudinary.js';
+import { paginateQuery, buildPaginationMeta } from '../utils/paginateQuery.js';
+
+// ── Allowed sort fields (whitelist to prevent injection) ───
+const AUCTION_SORT_FIELDS = new Set(['createdAt', 'endTime', 'currentHighestBid', 'basePrice']);
+const AUCTION_STATUSES    = new Set(['inactive', 'pending', 'approved', 'active', 'ended', 'rejected']);
+
+/**
+ * Build a shared auction filter from common query params.
+ * baseFiler is merged in first (e.g. { seller: id } or { status: 'pending' }).
+ */
+const buildAuctionFilter = (query, baseFilter = {}) => {
+  const { search, status, startDate, endDate, minPrice, maxPrice } = query;
+  const filter = { ...baseFilter };
+
+  if (search?.trim()) {
+    filter.title = { $regex: search.trim(), $options: 'i' };
+  }
+
+  if (status && status !== 'all' && AUCTION_STATUSES.has(status)) {
+    filter.status = status;
+  }
+
+  if (startDate) {
+    filter.createdAt = { ...filter.createdAt, $gte: new Date(startDate) };
+  }
+  if (endDate) {
+    filter.createdAt = { ...filter.createdAt, $lte: new Date(endDate) };
+  }
+
+  if (minPrice != null && !Number.isNaN(Number(minPrice))) {
+    filter.basePrice = { ...filter.basePrice, $gte: Number(minPrice) };
+  }
+  if (maxPrice != null && !Number.isNaN(Number(maxPrice))) {
+    filter.basePrice = { ...filter.basePrice, $lte: Number(maxPrice) };
+  }
+
+  return filter;
+};
+
+/**
+ * Build a safe sort object from query params.
+ */
+const buildSort = (sortBy, sortOrder, allowedFields = AUCTION_SORT_FIELDS) => {
+  const field = allowedFields.has(sortBy) ? sortBy : 'createdAt';
+  const order = sortOrder === 'asc' ? 1 : -1;
+  return { [field]: order };
+};
 
 // ── Create Auction (status: inactive) ──────────────────────
 export const createAuction = async (req, res, next) => {
@@ -43,9 +91,7 @@ export const submitForVerification = async (req, res, next) => {
   try {
     const auction = await Auction.findById(req.params.id);
 
-    if (!auction) {
-      throw new ApiError(404, 'Auction not found');
-    }
+    if (!auction) throw new ApiError(404, 'Auction not found');
 
     if (req.user._id.toString() !== auction.seller.toString()) {
       throw new ApiError(403, 'You can only submit your own auctions');
@@ -71,9 +117,7 @@ export const updateAuction = async (req, res, next) => {
   try {
     const auction = await Auction.findById(req.params.id);
 
-    if (!auction) {
-      throw new ApiError(404, 'Auction not found');
-    }
+    if (!auction) throw new ApiError(404, 'Auction not found');
 
     if (req.user._id.toString() !== auction.seller.toString()) {
       throw new ApiError(403, 'You can only edit your own auctions');
@@ -84,19 +128,16 @@ export const updateAuction = async (req, res, next) => {
     }
 
     const previousStatus = auction.status;
-
-    // Allowed fields only
     const { title, description, basePrice, minIncrement, startTime, endTime } = req.body;
-    if (title !== undefined) auction.title = title;
+    if (title !== undefined)       auction.title       = title;
     if (description !== undefined) auction.description = description;
-    if (basePrice !== undefined) auction.basePrice = basePrice;
+    if (basePrice !== undefined)   auction.basePrice   = basePrice;
     if (minIncrement !== undefined) auction.minIncrement = minIncrement;
-    if (startTime !== undefined) auction.startTime = startTime;
-    if (endTime !== undefined) auction.endTime = endTime;
+    if (startTime !== undefined)   auction.startTime   = startTime;
+    if (endTime !== undefined)     auction.endTime     = endTime;
 
-    // Handle new images if uploaded
     if (req.files && req.files.length > 0) {
-      if (auction.images && auction.images.length > 0) {
+      if (auction.images?.length > 0) {
         await Promise.all(auction.images.map(img => deleteFromCloudinary(img.publicId)));
       }
       auction.images = req.files.map(file => ({
@@ -105,7 +146,6 @@ export const updateAuction = async (req, res, next) => {
       }));
     }
 
-    // If was pending or rejected, reset to inactive
     if (['pending', 'rejected'].includes(previousStatus)) {
       auction.status = 'inactive';
     }
@@ -127,9 +167,7 @@ export const deleteAuction = async (req, res, next) => {
   try {
     const auction = await Auction.findById(req.params.id);
 
-    if (!auction) {
-      throw new ApiError(404, 'Auction not found');
-    }
+    if (!auction) throw new ApiError(404, 'Auction not found');
 
     if (req.user._id.toString() !== auction.seller.toString()) {
       throw new ApiError(403, 'You can only delete your own auctions');
@@ -139,8 +177,7 @@ export const deleteAuction = async (req, res, next) => {
       throw new ApiError(400, 'Active or ended auctions cannot be deleted');
     }
 
-    // Cleanup associated documents and images
-    if (auction.images && auction.images.length > 0) {
+    if (auction.images?.length > 0) {
       await Promise.all(auction.images.map(img => deleteFromCloudinary(img.publicId)));
     }
 
@@ -156,7 +193,7 @@ export const deleteAuction = async (req, res, next) => {
   }
 };
 
-// ── Get Live Auctions ──────────────────────────────────────
+// ── Get Live Auctions (Bidder) ─────────────────────────────
 export const getLiveAuctions = async (req, res, next) => {
   try {
     const auctions = await Auction.find({ status: 'active' })
@@ -179,9 +216,7 @@ export const getAuctionById = async (req, res, next) => {
       .populate('seller', 'name email profileImage')
       .populate('highestBidder', 'name profileImage');
 
-    if (!auction) {
-      throw new ApiError(404, 'Auction not found');
-    }
+    if (!auction) throw new ApiError(404, 'Auction not found');
 
     res.status(200).json(
       new ApiResponse(200, auction, 'Auction details retrieved successfully')
@@ -201,10 +236,7 @@ export const approveAuction = async (req, res, next) => {
     }
 
     const auction = await Auction.findById(req.params.id);
-
-    if (!auction) {
-      throw new ApiError(404, 'Auction not found');
-    }
+    if (!auction) throw new ApiError(404, 'Auction not found');
 
     if (auction.status !== 'pending') {
       throw new ApiError(400, `Cannot ${action} auction that is already ${auction.status}`);
@@ -215,18 +247,12 @@ export const approveAuction = async (req, res, next) => {
       auction.rejectionReason = null;
       auction.approvedBy = req.user._id;
     } else {
-      if (!rejectionReason || !rejectionReason.trim()) {
+      if (!rejectionReason?.trim()) {
         throw new ApiError(400, 'Rejection reason is required');
       }
-      
       const trimmedReason = rejectionReason.trim();
-      
-      if (trimmedReason.length < 10) {
-        throw new ApiError(400, 'Rejection reason must be at least 10 characters');
-      }
-      if (trimmedReason.length > 500) {
-        throw new ApiError(400, 'Rejection reason cannot exceed 500 characters');
-      }
+      if (trimmedReason.length < 10)  throw new ApiError(400, 'Rejection reason must be at least 10 characters');
+      if (trimmedReason.length > 500) throw new ApiError(400, 'Rejection reason cannot exceed 500 characters');
 
       auction.status = 'rejected';
       auction.rejectionReason = trimmedReason;
@@ -243,29 +269,155 @@ export const approveAuction = async (req, res, next) => {
   }
 };
 
-// ── Get Pending Auctions (Admin) ───────────────────────────
+// ── Get Pending Auctions (Admin) — with search/filter/pagination ──
 export const getPendingAuctions = async (req, res, next) => {
   try {
-    const auctions = await Auction.find({ status: 'pending' })
-      .populate('seller', 'name profileImage')
-      .sort({ createdAt: -1 });
+    const { page, limit, sortBy, sortOrder } = req.query;
+    const { pageNum, limitNum, skip } = paginateQuery(page, limit);
+
+    const filter = buildAuctionFilter(req.query, { status: 'pending' });
+    const sort   = buildSort(sortBy, sortOrder);
+
+    const [auctions, total] = await Promise.all([
+      Auction.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum)
+        .populate('seller', 'name email profileImage')
+        .lean(),
+      Auction.countDocuments(filter),
+    ]);
 
     res.status(200).json(
-      new ApiResponse(200, auctions, 'Pending auctions retrieved successfully')
+      new ApiResponse(200, {
+        auctions,
+        pagination: buildPaginationMeta(total, pageNum, limitNum),
+      }, 'Pending auctions retrieved successfully')
     );
   } catch (error) {
     next(error);
   }
 };
 
-// ── Get My Auctions (Seller) ───────────────────────────────
-export const getMyAuctions = async (req, res, next) => {
+// ── Get All Auctions (Admin) — NEW ─────────────────────────
+export const getAllAuctions = async (req, res, next) => {
   try {
-    const auctions = await Auction.find({ seller: req.user._id })
-      .sort({ createdAt: -1 });
+    const { page, limit, sortBy, sortOrder, seller: sellerParam } = req.query;
+    const { pageNum, limitNum, skip } = paginateQuery(page, limit);
+
+    const filter = buildAuctionFilter(req.query);
+
+    // Filter by seller name (partial match across users)
+    if (sellerParam?.trim()) {
+      const matchedSellers = await User.find(
+        { name: { $regex: sellerParam.trim(), $options: 'i' }, role: 'seller' },
+        '_id'
+      ).lean();
+      filter.seller = { $in: matchedSellers.map(s => s._id) };
+    }
+
+    const sort = buildSort(sortBy, sortOrder);
+
+    const [
+      [auctions, total],
+      totalAll,
+      totalInactive,
+      totalPending,
+      totalApproved,
+      totalActive,
+      totalEnded,
+      totalRejected,
+    ] = await Promise.all([
+      Promise.all([
+        Auction.find(filter)
+          .sort(sort)
+          .skip(skip)
+          .limit(limitNum)
+          .populate('seller', 'name email profileImage')
+          .populate('highestBidder', 'name')
+          .lean(),
+        Auction.countDocuments(filter),
+      ]),
+      Auction.countDocuments({}),
+      Auction.countDocuments({ status: 'inactive' }),
+      Auction.countDocuments({ status: 'pending' }),
+      Auction.countDocuments({ status: 'approved' }),
+      Auction.countDocuments({ status: 'active' }),
+      Auction.countDocuments({ status: 'ended' }),
+      Auction.countDocuments({ status: 'rejected' }),
+    ]);
 
     res.status(200).json(
-      new ApiResponse(200, auctions, 'Your auctions retrieved successfully')
+      new ApiResponse(200, {
+        auctions,
+        pagination: buildPaginationMeta(total, pageNum, limitNum),
+        summary: {
+          total:    totalAll,
+          inactive: totalInactive,
+          pending:  totalPending,
+          approved: totalApproved,
+          active:   totalActive,
+          ended:    totalEnded,
+          rejected: totalRejected,
+        },
+      }, 'All auctions retrieved successfully')
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── Get My Auctions (Seller) — with search/filter/pagination ─
+export const getMyAuctions = async (req, res, next) => {
+  try {
+    const { page, limit, sortBy, sortOrder } = req.query;
+    const { pageNum, limitNum, skip } = paginateQuery(page, limit);
+
+    const filter = buildAuctionFilter(req.query, { seller: req.user._id });
+    const sort   = buildSort(sortBy, sortOrder);
+
+    const sellerBase = { seller: req.user._id };
+
+    const [
+      [auctions, total],
+      totalCount,
+      inactiveCount,
+      pendingCount,
+      activeCount,
+      rejectedCount,
+      endedCount,
+    ] = await Promise.all([
+      Promise.all([
+        Auction.find(filter)
+          .sort(sort)
+          .skip(skip)
+          .limit(limitNum)
+          .populate('highestBidder', 'name')
+          .lean(),
+        Auction.countDocuments(filter),
+      ]),
+      // Summary counts always against full seller dataset (unfiltered)
+      Auction.countDocuments(sellerBase),
+      Auction.countDocuments({ ...sellerBase, status: 'inactive' }),
+      Auction.countDocuments({ ...sellerBase, status: 'pending' }),
+      Auction.countDocuments({ ...sellerBase, status: 'active' }),
+      Auction.countDocuments({ ...sellerBase, status: 'rejected' }),
+      Auction.countDocuments({ ...sellerBase, status: 'ended' }),
+    ]);
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        auctions,
+        pagination: buildPaginationMeta(total, pageNum, limitNum),
+        summary: {
+          total:    totalCount,
+          inactive: inactiveCount,
+          pending:  pendingCount,
+          active:   activeCount,
+          rejected: rejectedCount,
+          ended:    endedCount,
+        },
+      }, 'Your auctions retrieved successfully')
     );
   } catch (error) {
     next(error);
