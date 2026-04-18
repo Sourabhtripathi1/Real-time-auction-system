@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import socket, { connectSocket, disconnectSocket } from '../socket/socket.js';
-import { useAuth } from './AuthContext.jsx';
+import { createContext, useContext, useEffect, useState } from "react";
+import socket, { connectSocket, disconnectSocket } from "../socket/socket.js";
+import { useAuth } from "./AuthContext.jsx";
 
 const SocketContext = createContext(null);
 
@@ -34,14 +34,14 @@ export const SocketProvider = ({ children }) => {
       setIsConnected(false);
     };
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect_error', onConnectError);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect_error', onConnectError);
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
     };
   }, []);
 
@@ -51,13 +51,13 @@ export const SocketProvider = ({ children }) => {
 
   const joinAuction = (auctionId, userId) => {
     if (socket.connected) {
-      socket.emit('joinAuction', { auctionId, userId });
+      socket.emit("joinAuction", { auctionId, userId });
     }
   };
 
   const leaveAuction = (auctionId) => {
     if (socket.connected) {
-      socket.emit('leaveAuction', { auctionId });
+      socket.emit("leaveAuction", { auctionId });
     }
   };
 
@@ -70,8 +70,7 @@ export const SocketProvider = ({ children }) => {
         disconnect,
         joinAuction,
         leaveAuction,
-      }}
-    >
+      }}>
       {children}
     </SocketContext.Provider>
   );
@@ -80,7 +79,7 @@ export const SocketProvider = ({ children }) => {
 export const useSocket = () => {
   const context = useContext(SocketContext);
   if (!context) {
-    throw new Error('useSocket must be used within a SocketProvider');
+    throw new Error("useSocket must be used within a SocketProvider");
   }
   return context;
 };

@@ -19,8 +19,8 @@ const auctionSchema = new mongoose.Schema(
       type: [
         {
           url: { type: String, required: true },
-          publicId: { type: String, required: true }
-        }
+          publicId: { type: String, required: true },
+        },
       ],
       validate: {
         validator: (arr) => arr.length <= 5,
@@ -63,7 +63,14 @@ const auctionSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ["inactive", "pending", "approved", "active", "ended", "rejected"],
+        values: [
+          "inactive",
+          "pending",
+          "approved",
+          "active",
+          "ended",
+          "rejected",
+        ],
         message: "{VALUE} is not a valid auction status",
       },
       default: "inactive",
@@ -84,7 +91,7 @@ const auctionSchema = new mongoose.Schema(
     strict: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // ── Indexes ────────────────────────────────────────────────

@@ -1,5 +1,12 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe } from '../services/authApi';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import { getMe } from "../services/authApi";
+import { getMySellerStatus } from "../services/sellerAuthApi";
 
 const AuthContext = createContext(null);
 
@@ -8,14 +15,18 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileImage, setProfileImage] = useState(null);
+  const [sellerStatus, setSellerStatus] = useState(null);
 
   // ── On mount: validate stored token + refresh user object ─
   useEffect(() => {
     const init = async () => {
-      const storedToken = localStorage.getItem('token');
-      const storedUser  = localStorage.getItem('user');
+      const storedToken = localStorage.getItem("token");
+      const storedUser = localStorage.getItem("user");
 
-      if (!storedToken) { setLoading(false); return; }
+      if (!storedToken) {
+        setLoading(false);
+        return;
+      }
 
       try {
         // Re-fetch full user from server to get latest profileImage etc.
@@ -24,16 +35,34 @@ export const AuthProvider = ({ children }) => {
         setToken(storedToken);
         setUser(freshUser);
         setProfileImage(freshUser?.profileImage?.url || null);
-        localStorage.setItem('user', JSON.stringify(freshUser));
+        localStorage.setItem("user", JSON.stringify(freshUser));
+
+        if (freshUser.role === "seller") {
+          // Silently fetch seller status
+          getMySellerStatus()
+            .then((sRes) => {
+              setSellerStatus(sRes.data.sellerStatus);
+              localStorage.setItem("sellerStatus", sRes.data.sellerStatus);
+            })
+            .catch(() => {
+              /* ignore */
+            });
+        }
+
+        // Also check if existing sellerStatus exists in localstorage as fallback
+        const storedStatus = localStorage.getItem("sellerStatus");
+        if (storedStatus) setSellerStatus(storedStatus);
       } catch (err) {
         // 401 or network error — clear everything
         if (err.response?.status === 401 || storedUser) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          localStorage.removeItem("sellerStatus");
         }
         setToken(null);
         setUser(null);
         setProfileImage(null);
+        setSellerStatus(null);
       } finally {
         setLoading(false);
       }
@@ -45,17 +74,30 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
     setToken(authToken);
     setProfileImage(userData?.profileImage?.url || null);
-    localStorage.setItem('token', authToken);
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem("token", authToken);
+    localStorage.setItem("user", JSON.stringify(userData));
+
+    if (userData.role === "seller") {
+      getMySellerStatus()
+        .then((sRes) => {
+          setSellerStatus(sRes.data.sellerStatus);
+          localStorage.setItem("sellerStatus", sRes.data.sellerStatus);
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    }
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
     setProfileImage(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+    setSellerStatus(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("sellerStatus");
+    window.location.href = "/login";
   }, []);
 
   // Update avatar in navbar immediately after profile image upload / remove
@@ -64,7 +106,7 @@ export const AuthProvider = ({ children }) => {
     setUser((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, profileImage: url ? { url } : null };
-      localStorage.setItem('user', JSON.stringify(updated));
+      localStorage.setItem("user", JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -74,9 +116,16 @@ export const AuthProvider = ({ children }) => {
     setUser((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, name };
-      localStorage.setItem('user', JSON.stringify(updated));
+      localStorage.setItem("user", JSON.stringify(updated));
       return updated;
     });
+  }, []);
+
+  // Update sellerStatus
+  const updateSellerStatus = useCallback((status) => {
+    setSellerStatus(status);
+    if (status) localStorage.setItem("sellerStatus", status);
+    else localStorage.removeItem("sellerStatus");
   }, []);
 
   const isAuthenticated = !!token && !!user;
@@ -88,21 +137,22 @@ export const AuthProvider = ({ children }) => {
         token,
         loading,
         profileImage,
+        sellerStatus,
         login,
         logout,
         isAuthenticated,
         updateProfileImage,
         updateUserName,
-      }}
-    >
+        updateSellerStatus,
+      }}>
       {children}
     </AuthContext.Provider>
   );
-};
+};;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
 

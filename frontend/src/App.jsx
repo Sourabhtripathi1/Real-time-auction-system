@@ -1,15 +1,15 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { SocketProvider } from './context/SocketContext';
-import { ThemeProvider } from './context/ThemeContext';
-import Navbar from './components/Navbar';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import AuctionList from './pages/AuctionList';
-import AuctionRoom from './pages/AuctionRoom';
-import Dashboard from './pages/Dashboard';
-import Watchlist from './pages/Watchlist';
-import Loader from './components/Loader';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { SocketProvider } from "./context/SocketContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import Navbar from "./components/Navbar";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import AuctionList from "./pages/AuctionList";
+import AuctionRoom from "./pages/AuctionRoom";
+import Dashboard from "./pages/Dashboard";
+import Watchlist from "./pages/Watchlist";
+import Loader from "./components/Loader";
 
 // ── Guest Route wrapper ────────────────────────────────────
 const GuestRoute = ({ children }) => {
@@ -17,7 +17,7 @@ const GuestRoute = ({ children }) => {
 
   if (loading) return <Loader />;
   if (isAuthenticated) {
-    if (user?.role === 'admin' || user?.role === 'seller') {
+    if (user?.role === "admin" || user?.role === "seller") {
       return <Navigate to="/dashboard" replace />;
     }
     return <Navigate to="/auctions" replace />;
@@ -46,7 +46,8 @@ const RoleProtectedRoute = ({ children, allowedRoles }) => {
         to="/dashboard"
         replace
         state={{
-          message: "🚫 Access denied. You do not have permission to view that page.",
+          message:
+            "🚫 Access denied. You do not have permission to view that page.",
         }}
       />
     );
@@ -58,7 +59,7 @@ const RootRedirect = () => {
   const { isAuthenticated, loading, user } = useAuth();
   if (loading) return <Loader />;
   if (!isAuthenticated) return <Navigate to="/auctions" replace />;
-  if (user?.role === 'admin' || user?.role === 'seller') {
+  if (user?.role === "admin" || user?.role === "seller") {
     return <Navigate to="/dashboard" replace />;
   }
   return <Navigate to="/auctions" replace />;
@@ -72,14 +73,49 @@ const AppLayout = () => {
       <main>
         <Routes>
           <Route path="/" element={<RootRedirect />} />
-          <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
-          <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
-          
+          <Route
+            path="/login"
+            element={
+              <GuestRoute>
+                <Login />
+              </GuestRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <GuestRoute>
+                <Register />
+              </GuestRoute>
+            }
+          />
+
           <Route path="/auctions" element={<AuctionList />} />
-          <Route path="/auction/:id" element={<RoleProtectedRoute allowedRoles={['bidder']}><AuctionRoom /></RoleProtectedRoute>} />
-          <Route path="/watchlist" element={<RoleProtectedRoute allowedRoles={['bidder']}><Watchlist /></RoleProtectedRoute>} />
-          
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route
+            path="/auction/:id"
+            element={
+              <RoleProtectedRoute allowedRoles={["bidder"]}>
+                <AuctionRoom />
+              </RoleProtectedRoute>
+            }
+          />
+          <Route
+            path="/watchlist"
+            element={
+              <RoleProtectedRoute allowedRoles={["bidder"]}>
+                <Watchlist />
+              </RoleProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
 
           <Route path="*" element={<RootRedirect />} />
         </Routes>

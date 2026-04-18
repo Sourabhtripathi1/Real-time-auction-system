@@ -4,9 +4,9 @@
  * - limit clamped to [1, 50]
  */
 export const paginateQuery = (page, limit) => {
-  const pageNum  = Math.max(1, parseInt(page)  || 1);
+  const pageNum = Math.max(1, parseInt(page) || 1);
   const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 10));
-  const skip     = (pageNum - 1) * limitNum;
+  const skip = (pageNum - 1) * limitNum;
   return { pageNum, limitNum, skip };
 };
 
@@ -17,8 +17,8 @@ export const buildPaginationMeta = (total, pageNum, limitNum) => {
   const totalPages = Math.ceil(total / limitNum);
   return {
     total,
-    page:        pageNum,
-    limit:       limitNum,
+    page: pageNum,
+    limit: limitNum,
     totalPages,
     hasNextPage: pageNum < totalPages,
     hasPrevPage: pageNum > 1,

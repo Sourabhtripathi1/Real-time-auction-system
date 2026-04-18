@@ -2,7 +2,7 @@
 
 /* ── Custom theme (Tailwind v4 @theme) ──────────────────── */
 @theme {
-  --color-primary-50:  #eef2ff;
+  --color-primary-50: #eef2ff;
   --color-primary-100: #e0e7ff;
   --color-primary-200: #c7d2fe;
   --color-primary-300: #a5b4fc;
@@ -38,13 +38,17 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-sans);
-  background-color: #f9fafb; /* gray-50 */
-  color: #111827;            /* gray-900 */
+  background-color: #f9fafb;
+    /* gray-50 */
+    color: #111827;
+    /* gray-900 */
 }
 
 .dark body {
-  background-color: #030712; /* gray-950 */
-  color: #f9fafb;            /* gray-50 */
+  background-color: #030712;
+    /* gray-950 */
+    color: #f9fafb;
+    /* gray-50 */
 }
 
 #root {
@@ -61,7 +65,10 @@ body {
 }
 
 /* Disable transitions on elements that shouldn't animate */
-img, svg, video, canvas {
+img,
+svg,
+video,
+canvas {
   transition: none !important;
 }
 
@@ -70,19 +77,24 @@ img, svg, video, canvas {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 9999px;
 }
+
 .dark ::-webkit-scrollbar-thumb {
   background: #374151;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
 }

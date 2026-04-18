@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import { loginUser } from '../services/authApi';
-import { useAuth } from '../context/AuthContext';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { loginUser } from "../services/authApi";
+import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
@@ -18,13 +18,15 @@ const Login = () => {
     try {
       const res = await loginUser(email, password);
       login(res.data.user, res.data.token);
-      if (res.data.user.role === 'admin' || res.data.user.role === 'seller') {
-        navigate('/dashboard');
+      if (res.data.user.role === "admin" || res.data.user.role === "seller") {
+        navigate("/dashboard");
       } else {
-        navigate('/auctions');
+        navigate("/auctions");
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed. Please try again.');
+      toast.error(
+        err.response?.data?.message || "Login failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -48,10 +50,11 @@ const Login = () => {
 
         {/* Card */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-800 p-8">
-
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Email address
               </label>
               <input
@@ -66,7 +69,9 @@ const Login = () => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Password
               </label>
               <input
@@ -83,16 +88,17 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white font-semibold rounded-lg transition shadow-sm shadow-primary-600/20 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Signing in…' : 'Sign in'}
+              className="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white font-semibold rounded-lg transition shadow-sm shadow-primary-600/20 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
         </div>
 
         <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500 transition">
+          Don&apos;t have an account?{" "}
+          <Link
+            to="/register"
+            className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500 transition">
             Create one
           </Link>
         </p>

@@ -1,9 +1,9 @@
-import Auction from '../models/Auction.js';
-import Bid from '../models/Bid.js';
-import User from '../models/User.js';
-import { ApiError } from '../utils/ApiError.js';
-import { ApiResponse } from '../utils/ApiResponse.js';
-import { paginateQuery, buildPaginationMeta } from '../utils/paginateQuery.js';
+import Auction from "../models/Auction.js";
+import Bid from "../models/Bid.js";
+import User from "../models/User.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
 
 const ANTI_SNIPE_THRESHOLD_MS = 10_000;
 const ANTI_SNIPE_EXTENSION_MS = 10_000;
@@ -13,53 +13,56 @@ export const placeBid = async (req, res, next) => {
     const { auctionId, amount } = req.body;
 
     if (!auctionId || amount == null) {
-      throw new ApiError(400, 'Auction ID and bid amount are required');
+      throw new ApiError(400, "Auction ID and bid amount are required");
     }
 
     const bidAmount = Number(amount);
 
     if (Number.isNaN(bidAmount) || bidAmount <= 0) {
-      throw new ApiError(400, 'Bid amount must be a positive number');
+      throw new ApiError(400, "Bid amount must be a positive number");
     }
 
     // ── Step a) Auction must exist ─────────────────────────
     const auction = await Auction.findById(auctionId);
 
     if (!auction) {
-      throw new ApiError(404, 'Auction not found');
+      throw new ApiError(404, "Auction not found");
     }
 
     // ── Step b) Must be active ─────────────────────────────
-    if (auction.status !== 'active') {
-      throw new ApiError(400, `Auction is not active (current status: ${auction.status})`);
+    if (auction.status !== "active") {
+      throw new ApiError(
+        400,
+        `Auction is not active (current status: ${auction.status})`,
+      );
     }
 
     // ── Step c) Within auction time window ─────────────────
     const now = Date.now();
 
     if (now < new Date(auction.startTime).getTime()) {
-      throw new ApiError(400, 'Auction has not started yet');
+      throw new ApiError(400, "Auction has not started yet");
     }
 
     if (now > new Date(auction.endTime).getTime()) {
-      throw new ApiError(400, 'Auction has already ended');
+      throw new ApiError(400, "Auction has already ended");
     }
 
     // ── Step d) Seller cannot bid on own auction ───────────
     if (req.user._id.toString() === auction.seller.toString()) {
-      throw new ApiError(403, 'Seller cannot bid on their own auction');
+      throw new ApiError(403, "Seller cannot bid on their own auction");
     }
 
     // ── Step e) Blocked users cannot bid ───────────────────
     if (req.user.isBlocked) {
-      throw new ApiError(403, 'Your account has been blocked');
+      throw new ApiError(403, "Your account has been blocked");
     }
 
     // ── Step f) Bid must exceed current highest bid ────────
     if (bidAmount <= auction.currentHighestBid) {
       throw new ApiError(
         400,
-        `Bid must be higher than the current highest bid of ${auction.currentHighestBid}`
+        `Bid must be higher than the current highest bid of ${auction.currentHighestBid}`,
       );
     }
 
@@ -67,7 +70,7 @@ export const placeBid = async (req, res, next) => {
     if (bidAmount < auction.currentHighestBid + auction.minIncrement) {
       throw new ApiError(
         400,
-        `Bid must be at least ${auction.currentHighestBid + auction.minIncrement} (current bid + minimum increment of ${auction.minIncrement})`
+        `Bid must be at least ${auction.currentHighestBid + auction.minIncrement} (current bid + minimum increment of ${auction.minIncrement})`,
       );
     }
 
@@ -78,7 +81,7 @@ export const placeBid = async (req, res, next) => {
     const updatedAuction = await Auction.findOneAndUpdate(
       {
         _id: auctionId,
-        status: 'active',
+        status: "active",
         currentHighestBid: previousBid,
       },
       {
@@ -87,27 +90,28 @@ export const placeBid = async (req, res, next) => {
           highestBidder: req.user._id,
         },
       },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!updatedAuction) {
       throw new ApiError(
         409,
-        'Bid conflict — another bid was placed simultaneously. Please try again.'
+        "Bid conflict — another bid was placed simultaneously. Please try again.",
       );
     }
 
     // ── Get io instance once ───────────────────────────────
-    const io = req.app.get('io');
+    const io = req.app.get("io");
 
     // ── Anti-sniping: extend if bid placed in final 10s ────
     let sniped = false;
 
-    const timeRemaining = new Date(updatedAuction.endTime).getTime() - Date.now();
+    const timeRemaining =
+      new Date(updatedAuction.endTime).getTime() - Date.now();
 
     if (timeRemaining <= ANTI_SNIPE_THRESHOLD_MS) {
       const newEndTime = new Date(
-        new Date(updatedAuction.endTime).getTime() + ANTI_SNIPE_EXTENSION_MS
+        new Date(updatedAuction.endTime).getTime() + ANTI_SNIPE_EXTENSION_MS,
       );
 
       await Auction.findByIdAndUpdate(auctionId, {
@@ -117,7 +121,7 @@ export const placeBid = async (req, res, next) => {
       sniped = true;
 
       // Emit timer extension to the auction room
-      io.to(`auction_${auctionId}`).emit('timerExtended', {
+      io.to(`auction_${auctionId}`).emit("timerExtended", {
         auctionId,
         newEndTime,
       });
@@ -132,7 +136,7 @@ export const placeBid = async (req, res, next) => {
     });
 
     // ── Socket: broadcast bid update ───────────────────────
-    io.to(`auction_${auctionId}`).emit('bidUpdated', {
+    io.to(`auction_${auctionId}`).emit("bidUpdated", {
       auctionId,
       highestBid: bidAmount,
       highestBidder: { id: req.user._id, name: req.user.name },
@@ -149,9 +153,9 @@ export const placeBid = async (req, res, next) => {
           sniped,
         },
         sniped
-          ? 'Bid placed successfully — timer extended due to last-second bid'
-          : 'Bid placed successfully'
-      )
+          ? "Bid placed successfully — timer extended due to last-second bid"
+          : "Bid placed successfully",
+      ),
     );
   } catch (error) {
     next(error);
@@ -163,13 +167,13 @@ export const getBidsByAuction = async (req, res, next) => {
     const { auctionId } = req.params;
 
     const bids = await Bid.find({ auction: auctionId })
-      .populate('bidder', 'name profileImage')
+      .populate("bidder", "name profileImage")
       .sort({ timestamp: -1 })
       .limit(50);
 
-    res.status(200).json(
-      new ApiResponse(200, bids, 'Bids retrieved successfully')
-    );
+    res
+      .status(200)
+      .json(new ApiResponse(200, bids, "Bids retrieved successfully"));
   } catch (error) {
     next(error);
   }
@@ -186,16 +190,16 @@ export const getMyBids = async (req, res, next) => {
     // Optional: filter bids by matching auction title
     if (search?.trim()) {
       const matchedAuctions = await Auction.find(
-        { title: { $regex: search.trim(), $options: 'i' } },
-        '_id'
+        { title: { $regex: search.trim(), $options: "i" } },
+        "_id",
       ).lean();
-      filter.auction = { $in: matchedAuctions.map(a => a._id) };
+      filter.auction = { $in: matchedAuctions.map((a) => a._id) };
     }
 
     // Whitelist sort fields
-    const allowedSortFields = new Set(['timestamp', 'amount']);
-    const safeSortField = allowedSortFields.has(sortBy) ? sortBy : 'timestamp';
-    const safeSortOrder = sortOrder === 'asc' ? 1 : -1;
+    const allowedSortFields = new Set(["timestamp", "amount"]);
+    const safeSortField = allowedSortFields.has(sortBy) ? sortBy : "timestamp";
+    const safeSortOrder = sortOrder === "asc" ? 1 : -1;
     const sort = { [safeSortField]: safeSortOrder };
 
     const [bids, total] = await Promise.all([
@@ -203,16 +207,20 @@ export const getMyBids = async (req, res, next) => {
         .sort(sort)
         .skip(skip)
         .limit(limitNum)
-        .populate('auction', 'title status currentHighestBid endTime images')
+        .populate("auction", "title status currentHighestBid endTime images")
         .lean(),
       Bid.countDocuments(filter),
     ]);
 
     res.status(200).json(
-      new ApiResponse(200, {
-        bids,
-        pagination: buildPaginationMeta(total, pageNum, limitNum),
-      }, 'Your bids retrieved successfully')
+      new ApiResponse(
+        200,
+        {
+          bids,
+          pagination: buildPaginationMeta(total, pageNum, limitNum),
+        },
+        "Your bids retrieved successfully",
+      ),
     );
   } catch (error) {
     next(error);

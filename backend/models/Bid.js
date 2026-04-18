@@ -26,7 +26,7 @@ const bidSchema = new mongoose.Schema(
     strict: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // ── Indexes ────────────────────────────────────────────────

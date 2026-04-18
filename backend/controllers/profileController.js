@@ -25,11 +25,12 @@ export const getProfile = async (req, res, next) => {
     let stats = {};
 
     if (user.role === "seller") {
-      const [totalAuctions, activeAuctions, pendingAuctions] = await Promise.all([
-        Auction.countDocuments({ seller: user._id }),
-        Auction.countDocuments({ seller: user._id, status: "active" }),
-        Auction.countDocuments({ seller: user._id, status: "pending" }),
-      ]);
+      const [totalAuctions, activeAuctions, pendingAuctions] =
+        await Promise.all([
+          Auction.countDocuments({ seller: user._id }),
+          Auction.countDocuments({ seller: user._id, status: "active" }),
+          Auction.countDocuments({ seller: user._id, status: "pending" }),
+        ]);
       stats = { totalAuctions, activeAuctions, pendingAuctions };
     }
 
@@ -42,9 +43,11 @@ export const getProfile = async (req, res, next) => {
       stats = { totalBids, auctionsWon, watchlistCount };
     }
 
-    res.status(200).json(
-      new ApiResponse(200, { user, stats }, "Profile fetched successfully")
-    );
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, { user, stats }, "Profile fetched successfully"),
+      );
   } catch (err) {
     next(err);
   }
@@ -74,10 +77,59 @@ export const updateProfile = async (req, res, next) => {
 
     // Address sub-fields — merge safely
     if (address && typeof address === "object") {
-      const allowedAddressFields = ["street", "city", "state", "pincode", "country"];
+      const allowedAddressFields = [
+        "street",
+        "city",
+        "state",
+        "pincode",
+        "country",
+      ];
       for (const key of allowedAddressFields) {
         if (address[key] !== undefined) {
           updates[`address.${key}`] = address[key];
+        }
+      }
+    }
+
+    // Seller profile — merge safely if role is seller
+    if (req.user.role === "seller") {
+      let sp = req.body.sellerProfile;
+      // Handle FormData where objects might be stringified
+      if (typeof sp === "string") {
+        try {
+          sp = JSON.parse(sp);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      // Handle multer flat nested keys like {'sellerProfile[businessName]': '...'}
+      for (const key in req.body) {
+        if (key.startsWith("sellerProfile[")) {
+          const subKey = key.match(/\[(.*?)\]/)[1];
+          const allowed = [
+            "businessName",
+            "businessType",
+            "description",
+            "website",
+          ];
+          if (allowed.includes(subKey)) {
+            updates[`sellerProfile.${subKey}`] = req.body[key];
+          }
+        }
+      }
+
+      if (typeof sp === "object" && sp !== null) {
+        const allowedSellerFields = [
+          "businessName",
+          "businessType",
+          "description",
+          "website",
+        ];
+        for (const key of allowedSellerFields) {
+          if (sp[key] !== undefined) {
+            updates[`sellerProfile.${key}`] = sp[key];
+          }
         }
       }
     }
@@ -98,14 +150,20 @@ export const updateProfile = async (req, res, next) => {
     const updatedUser = await User.findByIdAndUpdate(
       req.user.id,
       { $set: updates },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     ).select("-password");
 
     if (!updatedUser) throw new ApiError(404, "User not found");
 
-    res.status(200).json(
-      new ApiResponse(200, { user: updatedUser }, "Profile updated successfully")
-    );
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { user: updatedUser },
+          "Profile updated successfully",
+        ),
+      );
   } catch (err) {
     next(err);
   }
@@ -133,7 +191,10 @@ export const changePassword = async (req, res, next) => {
 
     // d) Must differ from current
     if (newPassword === currentPassword) {
-      throw new ApiError(400, "New password must be different from current password");
+      throw new ApiError(
+        400,
+        "New password must be different from current password",
+      );
     }
 
     // e) Fetch with password (normally select: false)
@@ -149,9 +210,9 @@ export const changePassword = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(newPassword, salt);
     await User.findByIdAndUpdate(req.user.id, { password: hashedPassword });
 
-    res.status(200).json(
-      new ApiResponse(200, null, "Password changed successfully")
-    );
+    res
+      .status(200)
+      .json(new ApiResponse(200, null, "Password changed successfully"));
   } catch (err) {
     next(err);
   }
@@ -172,9 +233,11 @@ export const removeProfileImage = async (req, res, next) => {
     user.profileImage = null;
     await user.save();
 
-    res.status(200).json(
-      new ApiResponse(200, { user }, "Profile image removed successfully")
-    );
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, { user }, "Profile image removed successfully"),
+      );
   } catch (err) {
     next(err);
   }

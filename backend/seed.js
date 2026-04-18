@@ -67,6 +67,14 @@ const seed = async () => {
         email: "seller@auction.com",
         password: "seller123",
         role: "seller",
+        sellerStatus: "authorized",
+        sellerAppliedAt: new Date(),
+        sellerStatusUpdatedAt: new Date(),
+        sellerProfile: {
+          businessName: "Seller Store",
+          businessType: "individual",
+          description: "Seeded test seller with authorized status.",
+        },
       },
       {
         name: "Bidder",

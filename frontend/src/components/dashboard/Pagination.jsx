@@ -17,7 +17,7 @@ const buildPageList = (current, total) => {
 
   for (let i = 0; i < sorted.length; i++) {
     if (i > 0 && sorted[i] - sorted[i - 1] > 1) {
-      result.push('...');
+      result.push("...");
     }
     result.push(sorted[i]);
   }
@@ -26,15 +26,15 @@ const buildPageList = (current, total) => {
 };
 
 const Pagination = ({
-  pagination   = {},
+  pagination = {},
   onPageChange,
   onLimitChange,
-  isLoading    = false,
+  isLoading = false,
 }) => {
   const {
-    total      = 0,
-    page       = 1,
-    limit      = 10,
+    total = 0,
+    page = 1,
+    limit = 10,
     totalPages = 0,
     hasNextPage = false,
     hasPrevPage = false,
@@ -44,8 +44,8 @@ const Pagination = ({
   if (total === 0 && !isLoading) return null;
   if (totalPages <= 1 && total <= limit && !isLoading) return null;
 
-  const from  = total === 0 ? 0 : (page - 1) * limit + 1;
-  const to    = Math.min(page * limit, total);
+  const from = total === 0 ? 0 : (page - 1) * limit + 1;
+  const to = Math.min(page * limit, total);
   const pages = buildPageList(page, totalPages);
 
   const btnBase = `inline-flex items-center justify-center h-9 rounded-lg text-sm font-medium
@@ -58,13 +58,11 @@ const Pagination = ({
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-6">
-
       {/* Left — Results info */}
       <div className="text-sm text-gray-500 dark:text-gray-400 shrink-0 order-2 sm:order-1">
         {total === 0
-          ? 'No results found'
-          : `Showing ${from}–${to} of ${total.toLocaleString()} result${total !== 1 ? 's' : ''}`
-        }
+          ? "No results found"
+          : `Showing ${from}–${to} of ${total.toLocaleString()} result${total !== 1 ? "s" : ""}`}
       </div>
 
       {/* Center — Page buttons (hidden on mobile) */}
@@ -74,30 +72,28 @@ const Pagination = ({
           onClick={() => onPageChange?.(page - 1)}
           disabled={!hasPrevPage || isLoading}
           className={btnNav}
-          aria-label="Previous page"
-        >
+          aria-label="Previous page">
           ←
         </button>
 
         {pages.map((p, i) =>
-          p === '...'
-            ? (
-              <span key={`ellipsis-${i}`} className="text-gray-400 dark:text-gray-500 w-9 text-center select-none">
-                …
-              </span>
-            )
-            : (
-              <button
-                key={p}
-                onClick={() => onPageChange?.(p)}
-                disabled={isLoading}
-                className={p === page ? btnActive : btnInactive}
-                aria-label={`Page ${p}`}
-                aria-current={p === page ? 'page' : undefined}
-              >
-                {p}
-              </button>
-            )
+          p === "..." ? (
+            <span
+              key={`ellipsis-${i}`}
+              className="text-gray-400 dark:text-gray-500 w-9 text-center select-none">
+              …
+            </span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPageChange?.(p)}
+              disabled={isLoading}
+              className={p === page ? btnActive : btnInactive}
+              aria-label={`Page ${p}`}
+              aria-current={p === page ? "page" : undefined}>
+              {p}
+            </button>
+          ),
         )}
 
         {/* Next */}
@@ -105,8 +101,7 @@ const Pagination = ({
           onClick={() => onPageChange?.(page + 1)}
           disabled={!hasNextPage || isLoading}
           className={btnNav}
-          aria-label="Next page"
-        >
+          aria-label="Next page">
           →
         </button>
       </div>
@@ -117,8 +112,7 @@ const Pagination = ({
           onClick={() => onPageChange?.(page - 1)}
           disabled={!hasPrevPage || isLoading}
           className={btnNav}
-          aria-label="Previous page"
-        >
+          aria-label="Previous page">
           ←
         </button>
         <span className="text-sm text-gray-600 dark:text-gray-300 px-2">
@@ -128,8 +122,7 @@ const Pagination = ({
           onClick={() => onPageChange?.(page + 1)}
           disabled={!hasNextPage || isLoading}
           className={btnNav}
-          aria-label="Next page"
-        >
+          aria-label="Next page">
           →
         </button>
       </div>
@@ -143,10 +136,11 @@ const Pagination = ({
           disabled={isLoading}
           className="rounded-lg border border-gray-200 dark:border-gray-700 px-2 py-1 text-sm
             bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300
-            focus:outline-none focus:ring-2 focus:ring-indigo-500 transition disabled:opacity-50"
-        >
+            focus:outline-none focus:ring-2 focus:ring-indigo-500 transition disabled:opacity-50">
           {PAGE_SIZE_OPTIONS.map((n) => (
-            <option key={n} value={n}>{n}</option>
+            <option key={n} value={n}>
+              {n}
+            </option>
           ))}
         </select>
       </div>

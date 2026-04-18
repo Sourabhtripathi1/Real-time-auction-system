@@ -1,7 +1,7 @@
-import API from './authApi';
+import API from "./authApi";
 
 export const placeBid = async (auctionId, amount) => {
-  const { data } = await API.post('/bids/place', { auctionId, amount });
+  const { data } = await API.post("/bids/place", { auctionId, amount });
   return data;
 };
 

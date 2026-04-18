@@ -36,7 +36,7 @@ const auctionUpload = multer({
 });
 
 export const uploadAuctionImages = auctionUpload.array("images", 5);
-export const uploadSingleImage   = auctionUpload.single("image");
+export const uploadSingleImage = auctionUpload.single("image");
 
 // ── Profile image storage ──────────────────────────────────
 const profileImageStorage = new CloudinaryStorage({

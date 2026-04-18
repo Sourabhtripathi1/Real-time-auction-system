@@ -46,10 +46,7 @@ const userSchema = new mongoose.Schema(
     contactNumber: {
       type: String,
       trim: true,
-      match: [
-        /^[0-9]{10,15}$/,
-        "Enter a valid contact number (10-15 digits)",
-      ],
+      match: [/^[0-9]{10,15}$/, "Enter a valid contact number (10-15 digits)"],
       default: null,
     },
     profileImage: {
@@ -60,9 +57,9 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     address: {
-      street:  { type: String, trim: true, default: null },
-      city:    { type: String, trim: true, default: null },
-      state:   { type: String, trim: true, default: null },
+      street: { type: String, trim: true, default: null },
+      city: { type: String, trim: true, default: null },
+      state: { type: String, trim: true, default: null },
       pincode: { type: String, trim: true, default: null },
       country: { type: String, trim: true, default: "India" },
     },
@@ -73,6 +70,53 @@ const userSchema = new mongoose.Schema(
     isEmailVerified: {
       type: Boolean,
       default: false,
+    },
+
+    // ── Seller authorization fields ─────────────────────────
+    sellerProfile: {
+      businessName: { type: String, trim: true, default: null },
+      businessType: {
+        type: String,
+        enum: ["individual", "small_business", "company", "other", null],
+        default: null,
+      },
+      description: { type: String, trim: true, maxlength: 500, default: null },
+      website: { type: String, trim: true, default: null },
+      socialLinks: {
+        instagram: { type: String, default: null },
+        facebook: { type: String, default: null },
+        twitter: { type: String, default: null },
+      },
+    },
+    sellerStatus: {
+      type: String,
+      enum: [
+        "unverified",
+        "pending_review",
+        "authorized",
+        "rejected",
+        "suspended",
+      ],
+      default: "unverified",
+      index: true,
+    },
+    sellerStatusReason: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    sellerStatusUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+    sellerStatusUpdatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    sellerAppliedAt: {
+      type: Date,
+      default: null,
     },
   },
   {
@@ -94,22 +138,29 @@ const userSchema = new mongoose.Schema(
         return ret;
       },
     },
-  }
+  },
 );
 
 // ── Virtual: profileCompletion (0–100) ─────────────────────
 userSchema.virtual("profileCompletion").get(function () {
   let score = 0;
-  if (this.name)                 score += 20;
-  if (this.contactNumber)        score += 20;
-  if (this.profileImage?.url)    score += 20;
-  if (this.address?.city)        score += 20;
-  if (this.address?.state)       score += 20;
+  if (this.name) score += 20;
+  if (this.contactNumber) score += 20;
+  if (this.profileImage?.url) score += 20;
+  if (this.address?.city) score += 20;
+  if (this.address?.state) score += 20;
   return score;
+});
+
+// ── Virtual: isAuthorizedSeller ────────────────────────────
+userSchema.virtual("isAuthorizedSeller").get(function () {
+  return this.role === "seller" && this.sellerStatus === "authorized";
 });
 
 // ── Indexes ────────────────────────────────────────────────
 userSchema.index({ role: 1 });
+userSchema.index({ sellerStatus: 1 });
+userSchema.index({ role: 1, sellerStatus: 1 });
 
 // ── Pre-save hook: hash password ───────────────────────────
 userSchema.pre("save", async function () {

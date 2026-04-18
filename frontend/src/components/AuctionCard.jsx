@@ -1,15 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
-import useCountdown from '../hooks/useCountdown';
-import ImageSlider from './ImageSlider';
+import { useState, useEffect, useRef } from "react";
+import useCountdown from "../hooks/useCountdown";
+import ImageSlider from "./ImageSlider";
 
-const pad = (n) => String(n).padStart(2, '0');
+const pad = (n) => String(n).padStart(2, "0");
 
 // ── Compact Countdown ──────────────────────────────────────
 const CompactTimer = ({ endTime }) => {
   const { hours, minutes, seconds, isExpired } = useCountdown(endTime);
 
   if (isExpired) {
-    return <span className="text-xs font-semibold text-red-500 dark:text-red-400">Auction Ended</span>;
+    return (
+      <span className="text-xs font-semibold text-red-500 dark:text-red-400">
+        Auction Ended
+      </span>
+    );
   }
 
   const totalSeconds = hours * 3600 + minutes * 60 + seconds;
@@ -17,13 +21,14 @@ const CompactTimer = ({ endTime }) => {
   const isCritical = totalSeconds <= 10;
 
   const colorClass = isCritical
-    ? 'text-red-600 dark:text-red-400'
+    ? "text-red-600 dark:text-red-400"
     : isUrgent
-      ? 'text-amber-500 dark:text-amber-400'
-      : 'text-emerald-600 dark:text-emerald-400';
+      ? "text-amber-500 dark:text-amber-400"
+      : "text-emerald-600 dark:text-emerald-400";
 
   return (
-    <span className={`font-mono font-bold text-sm ${colorClass} ${isCritical ? 'animate-pulse' : ''}`}>
+    <span
+      className={`font-mono font-bold text-sm ${colorClass} ${isCritical ? "animate-pulse" : ""}`}>
       {pad(hours)}:{pad(minutes)}:{pad(seconds)}
     </span>
   );
@@ -34,7 +39,7 @@ const StatusBadge = ({ status, endTime }) => {
   const { minutes, seconds, isExpired } = useCountdown(endTime);
   const totalMinLeft = minutes + (isExpired ? 0 : 1);
 
-  if (status === 'ended' || isExpired) {
+  if (status === "ended" || isExpired) {
     return (
       <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-gray-700/90 text-white text-xs font-bold px-2.5 py-1 rounded-full">
         Ended
@@ -42,7 +47,7 @@ const StatusBadge = ({ status, endTime }) => {
     );
   }
 
-  if (status === 'active') {
+  if (status === "active") {
     const isEndingSoon = totalMinLeft <= 10 && !isExpired;
     if (isEndingSoon) {
       return (
@@ -60,10 +65,10 @@ const StatusBadge = ({ status, endTime }) => {
     );
   }
 
-  if (status === 'pending' || status === 'approved') {
+  if (status === "pending" || status === "approved") {
     return (
       <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-amber-500/90 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-        {status === 'approved' ? 'Starting Soon' : 'Pending'}
+        {status === "approved" ? "Starting Soon" : "Pending"}
       </div>
     );
   }
@@ -74,9 +79,14 @@ const StatusBadge = ({ status, endTime }) => {
 // ═══════════════════════════════════════════════════════════
 // AUCTION CARD
 // ═══════════════════════════════════════════════════════════
-const AuctionCard = ({ auction, onJoin, currentHighestBid: liveBid, isEnded: liveEnded }) => {
+const AuctionCard = ({
+  auction,
+  onJoin,
+  currentHighestBid: liveBid,
+  isEnded: liveEnded,
+}) => {
   const bidAmount = liveBid ?? auction.currentHighestBid;
-  const status = liveEnded ? 'ended' : auction.status;
+  const status = liveEnded ? "ended" : auction.status;
   const hasBids = bidAmount != null && bidAmount > 0;
   const [bidFlash, setBidFlash] = useState(false);
   const prevBidRef = useRef(bidAmount);

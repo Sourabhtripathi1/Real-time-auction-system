@@ -1,8 +1,8 @@
-import User from '../models/User.js';
-import { ApiError } from '../utils/ApiError.js';
-import { ApiResponse } from '../utils/ApiResponse.js';
-import jwt from 'jsonwebtoken';
-import { updateLastLogin } from './profileController.js';
+import User from "../models/User.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
+import { updateLastLogin } from "./profileController.js";
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -17,14 +17,14 @@ export const register = async (req, res, next) => {
     const userExists = await User.findOne({ email });
 
     if (userExists) {
-      throw new ApiError(400, 'User already exists');
+      throw new ApiError(400, "User already exists");
     }
 
     const user = await User.create({
       name,
       email,
       password,
-      role: role || 'bidder',
+      role: role || "bidder",
     });
 
     const token = generateToken(user._id);
@@ -32,9 +32,11 @@ export const register = async (req, res, next) => {
     // Remove password from response
     user.password = undefined;
 
-    res.status(201).json(
-      new ApiResponse(201, { user, token }, 'User registered successfully')
-    );
+    res
+      .status(201)
+      .json(
+        new ApiResponse(201, { user, token }, "User registered successfully"),
+      );
   } catch (error) {
     next(error);
   }
@@ -45,17 +47,17 @@ export const login = async (req, res, next) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      throw new ApiError(400, 'Please provide email and password');
+      throw new ApiError(400, "Please provide email and password");
     }
 
-    const user = await User.findOne({ email }).select('+password +isBlocked');
+    const user = await User.findOne({ email }).select("+password +isBlocked");
 
     if (!user || !(await user.comparePassword(password))) {
-      throw new ApiError(401, 'Invalid credentials');
+      throw new ApiError(401, "Invalid credentials");
     }
 
     if (user.isBlocked) {
-      throw new ApiError(403, 'Your account has been blocked');
+      throw new ApiError(403, "Your account has been blocked");
     }
 
     const token = generateToken(user._id);
@@ -65,9 +67,11 @@ export const login = async (req, res, next) => {
 
     user.password = undefined;
 
-    res.status(200).json(
-      new ApiResponse(200, { user, token }, 'User logged in successfully')
-    );
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, { user, token }, "User logged in successfully"),
+      );
   } catch (error) {
     next(error);
   }
@@ -78,12 +82,12 @@ export const getMe = async (req, res, next) => {
     const user = await User.findById(req.user._id);
 
     if (!user) {
-      throw new ApiError(404, 'User not found');
+      throw new ApiError(404, "User not found");
     }
 
-    res.status(200).json(
-      new ApiResponse(200, user, 'User details retrieved successfully')
-    );
+    res
+      .status(200)
+      .json(new ApiResponse(200, user, "User details retrieved successfully"));
   } catch (error) {
     next(error);
   }

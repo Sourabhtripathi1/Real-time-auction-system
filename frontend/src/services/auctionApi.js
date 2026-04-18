@@ -1,7 +1,7 @@
-import API from './authApi';
+import API from "./authApi";
 
 export const getLiveAuctions = async () => {
-  const { data } = await API.get('/auctions/live');
+  const { data } = await API.get("/auctions/live");
   return data;
 };
 
@@ -11,24 +11,27 @@ export const getAuctionById = async (id) => {
 };
 
 export const createAuction = async (formData) => {
-  const { data } = await API.post('/auctions/create', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+  const { data } = await API.post("/auctions/create", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
 };
 
 export const approveAuction = async (id, { action, rejectionReason }) => {
-  const { data } = await API.patch(`/auctions/${id}/approve`, { action, rejectionReason });
+  const { data } = await API.patch(`/auctions/${id}/approve`, {
+    action,
+    rejectionReason,
+  });
   return data;
 };
 
 export const getPendingAuctions = async () => {
-  const { data } = await API.get('/auctions/pending');
+  const { data } = await API.get("/auctions/pending");
   return data;
 };
 
 export const getMyAuctions = async () => {
-  const { data } = await API.get('/auctions/mine');
+  const { data } = await API.get("/auctions/mine");
   return data;
 };
 
@@ -39,7 +42,7 @@ export const submitForVerification = async (auctionId) => {
 
 export const updateAuction = async (auctionId, formData) => {
   const { data } = await API.patch(`/auctions/${auctionId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
 };
