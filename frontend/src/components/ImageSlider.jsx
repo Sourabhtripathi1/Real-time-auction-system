@@ -121,7 +121,8 @@ const ImageSlider = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
-  const touchStartX = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartX = useRef(0);
   const thumbnailRef = useRef(null);
 
   const validImages = images?.filter((img) => getImageUrl(img)) || [];
@@ -169,12 +170,42 @@ const ImageSlider = ({
     [goPrev, goNext],
   );
 
-  // Touch / Swipe
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
+  const [dragOffset, setDragOffset] = useState(0);
+
+  // Mouse / Touch Swipe & Drag
+  const handleDragStart = (e) => {
+    if (total <= 1) return;
+    setIsDragging(true);
+    dragStartX.current = e.type.includes("mouse") ? e.pageX : e.touches[0].clientX;
   };
-  const handleTouchEnd = (e) => {
-    const diff = touchStartX.current - e.changedTouches[0].clientX;
+
+  const handleDragMove = (e) => {
+    if (!isDragging) return;
+    const currentX = e.type.includes("mouse") ? e.pageX : e.touches[0].clientX;
+    const diff = currentX - dragStartX.current;
+    
+    // Dampening at the edges
+    if (currentIndex === 0 && diff > 0) {
+      setDragOffset(diff * 0.3);
+    } else if (currentIndex === total - 1 && diff < 0) {
+      setDragOffset(diff * 0.3);
+    } else {
+      setDragOffset(diff);
+    }
+  };
+
+  const handleDragEnd = (e) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    setDragOffset(0);
+
+    const endX = e.type.includes("mouse") || e.type === "mouseleave" 
+      ? e.pageX 
+      : e.changedTouches?.[0]?.clientX;
+      
+    if (endX === undefined) return;
+
+    const diff = dragStartX.current - endX;
     if (Math.abs(diff) > 50) {
       if (diff > 0) goNext();
       else goPrev();
@@ -187,19 +218,30 @@ const ImageSlider = ({
     <div className="w-full select-none">
       {/* Main Image Area */}
       <div
-        className={`group relative w-full ${height} ${rounded} overflow-hidden bg-gray-100 dark:bg-gray-800`}
+        className={`group relative w-full ${height} ${rounded} overflow-hidden bg-gray-100 dark:bg-gray-800 touch-pan-y ${total > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
+        onMouseLeave={(e) => {
+          setIsHovered(false);
+          handleDragEnd(e);
+        }}
+        onMouseDown={handleDragStart}
+        onMouseMove={handleDragMove}
+        onMouseUp={handleDragEnd}
+        onTouchStart={handleDragStart}
+        onTouchMove={handleDragMove}
+        onTouchEnd={handleDragEnd}
         onKeyDown={handleKeyDown}
         tabIndex={0}
         role="region"
         aria-label="Image slider">
         {/* Slide Track */}
         <div
-          className="flex h-full transition-transform duration-300 ease-out will-change-transform"
-          style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+          className={`flex h-full will-change-transform ${
+            isDragging 
+              ? "transition-none" 
+              : "transition-transform duration-500 ease-out"
+          }`}
+          style={{ transform: `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))` }}>
           {validImages.map((img, i) => (
             <SlideImage
               key={i}
@@ -217,13 +259,6 @@ const ImageSlider = ({
         )}
         {total > 1 && currentIndex < total - 1 && (
           <ArrowBtn direction="right" onClick={goNext} />
-        )}
-
-        {/* Image Counter Badge */}
-        {total > 1 && (
-          <div className="absolute top-2.5 right-2.5 bg-black/50 text-white text-xs font-medium rounded-full px-2 py-0.5">
-            {currentIndex + 1} / {total}
-          </div>
         )}
 
         {/* Dot Indicators */}

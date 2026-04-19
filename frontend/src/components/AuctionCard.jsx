@@ -84,6 +84,8 @@ const AuctionCard = ({
   onJoin,
   currentHighestBid: liveBid,
   isEnded: liveEnded,
+  isWatchlisted,
+  onToggleWatchlist,
 }) => {
   const bidAmount = liveBid ?? auction.currentHighestBid;
   const status = liveEnded ? "ended" : auction.status;
@@ -106,6 +108,25 @@ const AuctionCard = ({
       {/* Image Section */}
       <div className="relative">
         <StatusBadge status={status} endTime={auction.endTime} />
+        
+        {onToggleWatchlist && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onToggleWatchlist(auction._id); }}
+            className="absolute top-2.5 right-2.5 z-10 p-1.5 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-full text-gray-500 hover:text-red-500 transition-colors shadow-sm hover:scale-110 active:scale-95"
+            title={isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}
+          >
+            {isWatchlisted ? (
+              <svg className="w-5 h-5 text-red-500 fill-current drop-shadow-sm" viewBox="0 0 24 24">
+                <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-gray-600 dark:text-gray-300 drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            )}
+          </button>
+        )}
+
         <ImageSlider
           images={auction.images}
           height="h-52"

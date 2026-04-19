@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getLiveAuctions } from "../services/auctionApi";
+import { getMyWatchlist, addToWatchlist, removeFromWatchlist } from "../services/watchlistApi";
 import { useSocket } from "../context/SocketContext";
+import { useAuth } from "../context/AuthContext";
+import { toast } from "react-toastify";
 import AuctionCard from "../components/AuctionCard";
 
 // ── Filter Tabs ────────────────────────────────────────────
@@ -63,6 +66,7 @@ const AuctionList = () => {
   const [sortBy, setSortBy] = useState("ending");
   const [lastUpdated, setLastUpdated] = useState(null);
   const [secondsAgo, setSecondsAgo] = useState(0);
+  const [watchlist, setWatchlist] = useState(new Set());
 
   // Live bid overrides (auctionId -> { highestBid, ended })
   const liveUpdatesRef = useRef({});
@@ -70,6 +74,7 @@ const AuctionList = () => {
 
   const navigate = useNavigate();
   const { socket } = useSocket();
+  const { user } = useAuth();
 
   // ── Fetch ────────────────────────────────────────────────
   const fetchAuctions = useCallback(async (silent = false) => {
@@ -89,9 +94,20 @@ const AuctionList = () => {
     }
   }, []);
 
+  const fetchWatchlist = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await getMyWatchlist();
+      setWatchlist(new Set(res.data.map((w) => w.auction?._id).filter(Boolean)));
+    } catch {
+      /* silent */
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchAuctions();
-  }, [fetchAuctions]);
+    fetchWatchlist();
+  }, [fetchAuctions, fetchWatchlist]);
 
   // Auto-refresh every 30s
   useEffect(() => {
@@ -138,6 +154,37 @@ const AuctionList = () => {
       socket.off("auctionEnded", onAuctionEnded);
     };
   }, [socket]);
+
+  // ── Watchlist Toggle ─────────────────────────────────────
+  const handleToggleWatchlist = async (auctionId) => {
+    if (!user) {
+      toast.info("Please log in to manage your watchlist.");
+      navigate("/login");
+      return;
+    }
+    const isWatchlisted = watchlist.has(auctionId);
+
+    // Optimistic UI update
+    setWatchlist((prev) => {
+      const next = new Set(prev);
+      if (isWatchlisted) next.delete(auctionId);
+      else next.add(auctionId);
+      return next;
+    });
+
+    try {
+      if (isWatchlisted) {
+        await removeFromWatchlist(auctionId);
+        toast.success("Removed from watchlist");
+      } else {
+        await addToWatchlist(auctionId);
+        toast.success("Added to watchlist");
+      }
+    } catch (err) {
+      fetchWatchlist();
+      toast.error("Failed to update watchlist");
+    }
+  };
 
   // ── Filter & Sort ────────────────────────────────────────
   const now = Date.now();
@@ -366,6 +413,8 @@ const AuctionList = () => {
                     onJoin={(id) => navigate(`/auction/${id}`)}
                     currentHighestBid={live?.highestBid}
                     isEnded={live?.ended}
+                    isWatchlisted={watchlist.has(auction._id)}
+                    onToggleWatchlist={handleToggleWatchlist}
                   />
                 );
               })}
