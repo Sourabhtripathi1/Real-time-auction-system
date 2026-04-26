@@ -16,6 +16,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [profileImage, setProfileImage] = useState(null);
   const [sellerStatus, setSellerStatus] = useState(null);
+  const [isAccountBlocked, setIsAccountBlocked] = useState(false);
+  const [blockedMessage, setBlockedMessage] = useState("");
 
   // ── On mount: validate stored token + refresh user object ─
   useEffect(() => {
@@ -68,6 +70,16 @@ export const AuthProvider = ({ children }) => {
       }
     };
     init();
+  }, []);
+
+  // Listen for blocked account events dispatched by the Axios interceptor
+  useEffect(() => {
+    const handleBlocked = (e) => {
+      setIsAccountBlocked(true);
+      setBlockedMessage(e.detail?.message || "Your account has been blocked.");
+    };
+    window.addEventListener("auth:blocked", handleBlocked);
+    return () => window.removeEventListener("auth:blocked", handleBlocked);
   }, []);
 
   const login = useCallback((userData, authToken) => {
@@ -138,6 +150,8 @@ export const AuthProvider = ({ children }) => {
         loading,
         profileImage,
         sellerStatus,
+        isAccountBlocked,
+        blockedMessage,
         login,
         logout,
         isAuthenticated,
@@ -148,7 +162,7 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-};;
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

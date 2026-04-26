@@ -61,6 +61,8 @@ const AuctionRoom = () => {
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistDone, setWatchlistDone] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [bidFlashConflict, setBidFlashConflict] = useState(false);
 
   const {
     bidAmount,
@@ -68,6 +70,7 @@ const AuctionRoom = () => {
     bidError,
     bidLoading,
     bidSuccess,
+    bidConflict,
     placeBid,
   } = useBid();
 
@@ -102,12 +105,32 @@ const AuctionRoom = () => {
     load();
   }, [auctionId]);
 
-  // Socket
+  // Socket setup + reconnect handling
   useEffect(() => {
     if (!token) return;
     connect(token);
-    if (socket.connected) joinAuction(auctionId, user?._id);
-    else socket.once("connect", () => joinAuction(auctionId, user?._id));
+
+    // Fetch latest auction state + re-join room (used on mount AND on reconnect)
+    const rejoinAndRefetch = async () => {
+      joinAuction(auctionId, user?._id);
+      // Re-fetch to catch any bids missed during disconnect
+      try {
+        const [auctionRes, bidsRes] = await Promise.all([
+          getAuctionById(auctionId),
+          getBidsByAuction(auctionId),
+        ]);
+        const a = auctionRes.data;
+        setCurrentBid(a.currentHighestBid);
+        setHighestBidder(a.highestBidder);
+        setEndTime(a.endTime);
+        setBids(bidsRes.data || []);
+      } catch {
+        /* silent on refetch failure */
+      }
+    };
+
+    if (socket.connected) rejoinAndRefetch();
+    else socket.once("connect", rejoinAndRefetch);
 
     const onBidUpdated = ({ highestBid, highestBidder: bidder, timestamp }) => {
       setCurrentBid(highestBid);
@@ -131,25 +154,58 @@ const AuctionRoom = () => {
       setAuction((prev) => (prev ? { ...prev, status: "ended" } : prev));
       if (winnerName) setWinner({ name: winnerName, amount: finalBid });
     };
-    const onUserJoined = ({ totalViewers }) => setViewers(totalViewers || 1);
+    // Viewer count updated after anyone joins or disconnects
+    const onViewerUpdate = ({ auctionId: id, viewers: count }) => {
+      if (id === auctionId) setViewers(count);
+    };
+    // Reconnect: re-join room and re-fetch data after connection restored
+    const onReconnect = () => {
+      setIsReconnecting(false);
+      rejoinAndRefetch();
+    };
+    const onDisconnect = () => {
+      setIsReconnecting(true);
+    };
 
     socket.on("bidUpdated", onBidUpdated);
     socket.on("timerExtended", onTimerExtended);
     socket.on("auctionEnded", onAuctionEnded);
-    socket.on("userJoined", onUserJoined);
+    socket.on("viewerUpdate", onViewerUpdate);
+    socket.on("connect", onReconnect);
+    socket.on("disconnect", onDisconnect);
 
     return () => {
       socket.off("bidUpdated", onBidUpdated);
       socket.off("timerExtended", onTimerExtended);
       socket.off("auctionEnded", onAuctionEnded);
-      socket.off("userJoined", onUserJoined);
+      socket.off("viewerUpdate", onViewerUpdate);
+      socket.off("connect", onReconnect);
+      socket.off("disconnect", onDisconnect);
+      // Leave the room — do NOT disconnect the socket (reused across pages)
       leaveAuction(auctionId);
     };
   }, [auctionId, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePlaceBid = async (e) => {
     e.preventDefault();
-    await placeBid(auctionId, bidAmount);
+    try {
+      await placeBid(auctionId, bidAmount, {
+        // On 409 BID_CONFLICT: update local currentBid state + show orange flash
+        onConflict: ({ currentHighestBid, minIncrement }) => {
+          if (currentHighestBid != null) setCurrentBid(currentHighestBid);
+          // Flash the bid display orange to signal the conflict
+          setBidFlashConflict(true);
+          setTimeout(() => setBidFlashConflict(false), 1500);
+          toast.warning(
+            "⚡ Someone just outbid you! Input updated with new minimum.",
+            { autoClose: 3000 },
+          );
+        },
+      });
+    } catch (err) {
+      // bidConflict case is handled inside useBid and via onConflict callback
+      // other errors surface via bidError state from useBid
+    }
   };
   const handleAddWatchlist = async () => {
     setWatchlistLoading(true);
@@ -183,6 +239,13 @@ const AuctionRoom = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Reconnecting Banner — shown when socket drops */}
+      {isReconnecting && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white text-center py-2 text-sm font-medium animate-pulse">
+          ⚡ Reconnecting to live auction...
+        </div>
+      )}
+
       {/* Winner Banner */}
       {winner && (
         <div className="mb-6 flex items-center gap-3 px-6 py-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl">
@@ -256,7 +319,11 @@ const AuctionRoom = () => {
                 <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">
                   Current Highest Bid
                 </p>
-                <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">
+                <p className={`text-4xl font-bold transition-colors duration-300 ${
+                  bidFlashConflict
+                    ? "text-amber-500 dark:text-amber-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }`}>
                   ₹{currentBid?.toLocaleString("en-IN")}
                 </p>
                 {highestBidder && (

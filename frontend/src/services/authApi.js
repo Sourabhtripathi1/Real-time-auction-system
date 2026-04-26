@@ -16,38 +16,46 @@ API.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// ── Response interceptor: handle 401 ───────────────────────
+// ── Response interceptor: handle 401 / 403 ────────────────────
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const message = error.response?.data?.message?.toLowerCase() || "";
+    const code = error.response?.data?.code || "";
+
+    // 401 — expired/invalid token → force logout
+    if (status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("sellerStatus");
 
-      // Only redirect if not already on login/register page
       const path = window.location.pathname;
       if (path !== "/login" && path !== "/register") {
         window.location.href = "/login";
       }
     }
 
+    // 403 + blocked/suspended → show BlockedNotice via React state
+    // (DO NOT redirect to /login — show full-screen notice instead)
     if (
-      error.response?.status === 403 &&
-      error.response.data?.message?.toLowerCase().includes("suspended")
+      status === 403 &&
+      (message.includes("blocked") ||
+        message.includes("suspended") ||
+        code === "ACCOUNT_BLOCKED" ||
+        code === "ACCOUNT_SUSPENDED")
     ) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("sellerStatus");
 
-      document.body.innerHTML = `
-         <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #111827; color: white; font-family: system-ui, sans-serif; text-align: center; padding: 20px;">
-            <div style="width: 64px; height: 64px; background: #991b1b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 24px;">⚠</div>
-            <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">Account Suspended</h1>
-            <p style="color: #9ca3af; margin-bottom: 24px;">Your account has been suspended. Please contact support.</p>
-            <button onclick="window.location.href='/login'" style="background: #374151; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold;">Logout</button>
-         </div>
-       `;
+      // Dispatch CustomEvent — AuthContext listens and sets isAccountBlocked
+      // This is the clean React-way vs. direct DOM manipulation
+      window.dispatchEvent(
+        new CustomEvent("auth:blocked", {
+          detail: { message: error.response?.data?.message || "Account blocked" },
+        }),
+      );
     }
 
     return Promise.reject(error);

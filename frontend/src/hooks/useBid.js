@@ -6,10 +6,12 @@ const useBid = () => {
   const [bidError, setBidError] = useState("");
   const [bidLoading, setBidLoading] = useState(false);
   const [bidSuccess, setBidSuccess] = useState(false);
+  const [bidConflict, setBidConflict] = useState(false); // true when 409 BID_CONFLICT
 
-  const placeBid = async (auctionId, amount) => {
+  const placeBid = async (auctionId, amount, { onConflict } = {}) => {
     setBidError("");
     setBidSuccess(false);
+    setBidConflict(false);
     setBidLoading(true);
 
     try {
@@ -22,7 +24,37 @@ const useBid = () => {
 
       return res;
     } catch (err) {
-      const msg = err.response?.data?.message || "Failed to place bid";
+      const status = err.response?.status;
+      const data = err.response?.data;
+
+      // ── 409 BID_CONFLICT: race condition caught ────────────
+      // Someone else placed a higher bid between our validation and write.
+      // Do NOT show generic error — handle gracefully with UI update.
+      if (status === 409 && data?.code === "BID_CONFLICT") {
+        setBidConflict(true);
+
+        // Auto-fill input with new minimum (currentHighestBid + minIncrement)
+        if (data.currentHighestBid != null && data.minIncrement != null) {
+          const newMin = data.currentHighestBid + data.minIncrement;
+          setBidAmount(String(newMin));
+        }
+
+        // Invoke caller's onConflict callback so AuctionRoom can update state
+        if (typeof onConflict === "function") {
+          onConflict({
+            currentHighestBid: data.currentHighestBid,
+            minIncrement: data.minIncrement,
+          });
+        }
+
+        // Clear conflict flag after 3s
+        setTimeout(() => setBidConflict(false), 3000);
+
+        throw err; // let AuctionRoom show its specific toast
+      }
+
+      // ── Generic error ──────────────────────────────────────
+      const msg = data?.message || "Failed to place bid";
       setBidError(msg);
 
       // Auto-clear error after 5s
@@ -40,6 +72,7 @@ const useBid = () => {
     bidError,
     bidLoading,
     bidSuccess,
+    bidConflict,
     placeBid,
   };
 };

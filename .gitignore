@@ -42,3 +42,6 @@ build/
 *.tgz
 *.tar.gz
 .npm
+
+
+application parsing prompt.txt

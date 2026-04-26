@@ -75,14 +75,28 @@ export const placeBid = async (req, res, next) => {
     }
 
     // ── Atomic update with race-condition guard ────────────
-    // The condition ensures currentHighestBid hasn't changed since we validated
+    // findOneAndUpdate is a SINGLE atomic DB operation:
+    // - The query conditions ARE the authoritative validation.
+    // - If another bid was placed between our read and this write,
+    //   currentHighestBid will have changed → this returns null → 409.
+    // - The $expr check also enforces minIncrement atomically.
     const previousBid = auction.currentHighestBid;
 
     const updatedAuction = await Auction.findOneAndUpdate(
       {
         _id: auctionId,
         status: "active",
-        currentHighestBid: previousBid,
+        // RACE CONDITION GUARD:
+        // Only succeeds if currentHighestBid hasn't changed since we validated.
+        // Another simultaneous bid will change this value, causing this to return null.
+        currentHighestBid: { $lte: previousBid },
+        // Also enforce minIncrement atomically in the DB operation
+        $expr: {
+          $gte: [
+            bidAmount,
+            { $add: ["$currentHighestBid", "$minIncrement"] },
+          ],
+        },
       },
       {
         $set: {
@@ -94,10 +108,19 @@ export const placeBid = async (req, res, next) => {
     );
 
     if (!updatedAuction) {
-      throw new ApiError(
-        409,
-        "Bid conflict — another bid was placed simultaneously. Please try again.",
-      );
+      // Re-fetch the current bid so the frontend can auto-fill
+      const freshAuction = await Auction.findById(auctionId)
+        .select("currentHighestBid minIncrement")
+        .lean();
+
+      return res.status(409).json({
+        success: false,
+        code: "BID_CONFLICT",
+        message:
+          "A higher bid was just placed. Please refresh and try again.",
+        currentHighestBid: freshAuction?.currentHighestBid ?? previousBid,
+        minIncrement: freshAuction?.minIncrement ?? auction.minIncrement,
+      });
     }
 
     // ── Get io instance once ───────────────────────────────

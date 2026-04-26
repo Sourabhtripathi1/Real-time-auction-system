@@ -35,6 +35,13 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  // Heartbeat config: detects dead connections within ~30 seconds
+  // Dead connections waste server memory and give wrong viewer counts
+  pingTimeout: 20000,    // 20s — how long to wait for pong before disconnect
+  pingInterval: 10000,   // 10s — how often to send ping
+  connectTimeout: 10000, // 10s — max time to establish connection
+  transports: ["websocket", "polling"], // websocket preferred, polling as fallback
+  upgradeTimeout: 10000,
 });
 
 app.set("io", io);

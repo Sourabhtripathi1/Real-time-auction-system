@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import Navbar from "./components/Navbar";
+import BlockedNotice from "./components/BlockedNotice";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import AuctionList from "./pages/AuctionList";
@@ -67,6 +68,14 @@ const RootRedirect = () => {
 
 // ── App layout ─────────────────────────────────────────────
 const AppLayout = () => {
+  const { isAccountBlocked, blockedMessage } = useAuth();
+
+  // If account is blocked, show the blocked notice over everything.
+  // This cannot be dismissed — user must contact support or logout.
+  if (isAccountBlocked) {
+    return <BlockedNotice message={blockedMessage} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
       <Navbar />
