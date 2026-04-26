@@ -59,14 +59,20 @@ const seed = async () => {
       {
         name: "Admin",
         email: "admin@auction.com",
-        password: "admin123",
+        password: "Admin123",
         role: "admin",
+        isBlocked: false,
+        contactNumber: "9999999999",
+        address: { city: "New York", country: "USA" }
       },
       {
         name: "Seller",
         email: "seller@auction.com",
-        password: "seller123",
+        password: "Seller123",
         role: "seller",
+        isBlocked: false,
+        contactNumber: "8888888888",
+        address: { city: "Los Angeles", country: "USA" },
         sellerStatus: "authorized",
         sellerAppliedAt: new Date(),
         sellerStatusUpdatedAt: new Date(),
@@ -74,19 +80,27 @@ const seed = async () => {
           businessName: "Seller Store",
           businessType: "individual",
           description: "Seeded test seller with authorized status.",
+          website: "https://example.com",
+          socialLinks: { twitter: "@sellerstore" }
         },
       },
       {
         name: "Bidder",
         email: "bidder@auction.com",
-        password: "bidder123",
+        password: "Bidder123",
         role: "bidder",
+        isBlocked: false,
+        contactNumber: "7777777777",
+        address: { city: "Chicago", country: "USA" }
       },
       {
         name: "Sourabh",
         email: "sourabh@gmail.com",
-        password: "sourabh123",
+        password: "Sourabh123",
         role: "bidder",
+        isBlocked: false,
+        contactNumber: "6666666666",
+        address: { city: "Mumbai", country: "India" }
       },
     ];
 
