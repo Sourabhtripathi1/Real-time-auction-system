@@ -5,7 +5,19 @@ export const placeBid = async (auctionId, amount) => {
   return data;
 };
 
-export const getBidsByAuction = async (auctionId) => {
-  const { data } = await API.get(`/bids/${auctionId}`);
+/**
+ * getBidsByAuction
+ *
+ * Fetches paginated bids for an auction, most recent first.
+ * page 1 = newest 20 bids; click "Load older bids" increments page.
+ *
+ * @param {string} auctionId
+ * @param {number} page   - page number (default 1)
+ * @param {number} limit  - bids per page (default 20)
+ */
+export const getBidsByAuction = async (auctionId, page = 1, limit = 20) => {
+  const { data } = await API.get(`/bids/${auctionId}`, {
+    params: { page, limit },
+  });
   return data;
 };

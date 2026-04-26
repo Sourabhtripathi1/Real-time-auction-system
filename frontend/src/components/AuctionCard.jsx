@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import useCountdown from "../hooks/useCountdown";
 import ImageSlider from "./ImageSlider";
+import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -93,6 +94,10 @@ const AuctionCard = ({
   const [bidFlash, setBidFlash] = useState(false);
   const prevBidRef = useRef(bidAmount);
 
+  // IntersectionObserver — defer ImageSlider init until card is visible.
+  // Prevents all images on the page from loading simultaneously on mount.
+  const [cardRef, isVisible] = useIntersectionObserver({ rootMargin: "50px" });
+
   // Flash animation on bid update
   useEffect(() => {
     if (prevBidRef.current !== bidAmount && bidAmount > 0) {
@@ -104,13 +109,15 @@ const AuctionCard = ({
   }, [bidAmount]);
 
   return (
-    <div className="group flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-md dark:shadow-gray-950/50 border border-gray-200/80 dark:border-gray-800 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-200">
+    <div
+      ref={cardRef}
+      className="group flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-md dark:shadow-gray-950/50 border border-gray-200/80 dark:border-gray-800 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-200">
       {/* Image Section */}
       <div className="relative">
         <StatusBadge status={status} endTime={auction.endTime} />
-        
+
         {onToggleWatchlist && (
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); onToggleWatchlist(auction._id); }}
             className="absolute top-2.5 right-2.5 z-10 p-1.5 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-full text-gray-500 hover:text-red-500 transition-colors shadow-sm hover:scale-110 active:scale-95"
             title={isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}
@@ -127,13 +134,21 @@ const AuctionCard = ({
           </button>
         )}
 
-        <ImageSlider
-          images={auction.images}
-          height="h-52"
-          showDots={true}
-          autoPlay={false}
-          rounded="rounded-none"
-        />
+        {/* Defer ImageSlider until card enters viewport */}
+        <div className="h-52 bg-gray-200 dark:bg-gray-800">
+          {isVisible ? (
+            <ImageSlider
+              images={auction.images}
+              height="h-52"
+              showDots={true}
+              autoPlay={false}
+              rounded="rounded-none"
+            />
+          ) : (
+            // Placeholder shimmer shown before card enters viewport
+            <div className="w-full h-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          )}
+        </div>
       </div>
 
       {/* Card Body */}
@@ -188,11 +203,6 @@ const AuctionCard = ({
           </p>
         )}
 
-        {/* Stats Row */}
-        {/* <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 pt-1">
-          <span>🏷 ID: #{auction._id?.slice(-6).toUpperCase()}</span>
-        </div> */}
-
         {/* Spacer to push button to bottom */}
         <div className="flex-1" />
 
@@ -221,4 +231,17 @@ const AuctionCard = ({
   );
 };
 
-export default AuctionCard;
+// React.memo with custom comparator:
+// Only re-render if the auction data that actually shows on the card changes.
+// This prevents the entire card list from re-rendering on every socket event.
+export default memo(AuctionCard, (prev, next) => {
+  return (
+    prev.auction._id === next.auction._id &&
+    prev.auction.currentHighestBid === next.auction.currentHighestBid &&
+    prev.auction.status === next.auction.status &&
+    prev.auction.endTime === next.auction.endTime &&
+    prev.currentHighestBid === next.currentHighestBid &&
+    prev.isEnded === next.isEnded &&
+    prev.isWatchlisted === next.isWatchlisted
+  );
+});

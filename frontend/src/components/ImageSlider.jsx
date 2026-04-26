@@ -97,7 +97,9 @@ const SlideImage = ({ url, index, total, objectFit }) => {
       <img
         src={url}
         alt={`Slide ${index + 1} of ${total}`}
-        className={`w-full h-full ${objectFit}`}
+        loading="lazy"
+        decoding="async"
+        className={`w-full h-full ${objectFit} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
         draggable={false}
@@ -150,6 +152,18 @@ const ImageSlider = ({
       }
     }
   }, [currentIndex, showThumbnails]);
+
+  // Preload the next image so slide transitions feel instant
+  useEffect(() => {
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < validImages.length) {
+      const nextUrl = getImageUrl(validImages[nextIndex]);
+      if (nextUrl) {
+        const img = new Image();
+        img.src = nextUrl;
+      }
+    }
+  }, [currentIndex, validImages]);
 
   const goTo = useCallback((i) => setCurrentIndex(i), []);
   const goPrev = useCallback(
@@ -300,6 +314,8 @@ const ImageSlider = ({
               <img
                 src={getImageUrl(img)}
                 alt={`Thumbnail ${i + 1}`}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover"
                 draggable={false}
               />

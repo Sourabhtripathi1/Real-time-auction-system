@@ -51,6 +51,9 @@ const AuctionRoom = () => {
 
   const [auction, setAuction] = useState(null);
   const [bids, setBids] = useState([]);
+  const [bidsPage, setBidsPage] = useState(1);
+  const [hasMoreBids, setHasMoreBids] = useState(false);
+  const [loadingMoreBids, setLoadingMoreBids] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [currentBid, setCurrentBid] = useState(0);
@@ -80,7 +83,7 @@ const AuctionRoom = () => {
       try {
         const [auctionRes, bidsRes] = await Promise.all([
           getAuctionById(auctionId),
-          getBidsByAuction(auctionId),
+          getBidsByAuction(auctionId, 1, 20),
         ]);
         const a = auctionRes.data;
         setAuction(a);
@@ -95,7 +98,11 @@ const AuctionRoom = () => {
               amount: a.currentHighestBid,
             });
         }
-        setBids(bidsRes.data || []);
+        // bidsRes.data is now { bids, pagination }
+        const bidsData = bidsRes.data;
+        setBids(bidsData?.bids || bidsData || []);
+        setHasMoreBids(bidsData?.pagination?.hasNextPage ?? false);
+        setBidsPage(1);
       } catch (err) {
         setPageError(err.response?.data?.message || "Failed to load auction");
       } finally {
@@ -117,13 +124,16 @@ const AuctionRoom = () => {
       try {
         const [auctionRes, bidsRes] = await Promise.all([
           getAuctionById(auctionId),
-          getBidsByAuction(auctionId),
+          getBidsByAuction(auctionId, 1, 20),
         ]);
         const a = auctionRes.data;
         setCurrentBid(a.currentHighestBid);
         setHighestBidder(a.highestBidder);
         setEndTime(a.endTime);
-        setBids(bidsRes.data || []);
+        const bidsData = bidsRes.data;
+        setBids(bidsData?.bids || bidsData || []);
+        setHasMoreBids(bidsData?.pagination?.hasNextPage ?? false);
+        setBidsPage(1);
       } catch {
         /* silent on refetch failure */
       }
@@ -135,6 +145,7 @@ const AuctionRoom = () => {
     const onBidUpdated = ({ highestBid, highestBidder: bidder, timestamp }) => {
       setCurrentBid(highestBid);
       setHighestBidder(bidder);
+      // Prepend new live bid to the top — do NOT refetch (socket is authoritative)
       setBids((prev) => [
         {
           _id: `live_${Date.now()}`,
@@ -418,7 +429,29 @@ const AuctionRoom = () => {
                   {bids.length} bids
                 </span>
               </div>
-              <BidHistory bids={bids} currentUserId={user?._id} />
+              <BidHistory
+                bids={bids}
+                currentUserId={user?._id}
+                hasMoreBids={hasMoreBids}
+                loadingMore={loadingMoreBids}
+                onLoadMore={async () => {
+                  if (loadingMoreBids) return;
+                  setLoadingMoreBids(true);
+                  try {
+                    const nextPage = bidsPage + 1;
+                    const res = await getBidsByAuction(auctionId, nextPage, 20);
+                    const bidsData = res.data;
+                    const olderBids = bidsData?.bids || [];
+                    setBids((prev) => [...prev, ...olderBids]);
+                    setBidsPage(nextPage);
+                    setHasMoreBids(bidsData?.pagination?.hasNextPage ?? false);
+                  } catch {
+                    /* silent */
+                  } finally {
+                    setLoadingMoreBids(false);
+                  }
+                }}
+              />
             </div>
           </div>
         </div>

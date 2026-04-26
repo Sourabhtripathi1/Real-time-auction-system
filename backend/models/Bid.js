@@ -30,9 +30,20 @@ const bidSchema = new mongoose.Schema(
 );
 
 // ── Indexes ────────────────────────────────────────────────
-bidSchema.index({ auction: 1, bidder: 1, amount: 1 });
+// Compound: getBidsByAuction → auction filter + sort by timestamp desc
+bidSchema.index({ auction: 1, timestamp: -1 });
+
+// Compound: getMyBids → bidder filter + sort by timestamp desc
+bidSchema.index({ bidder: 1, timestamp: -1 });
+
+// Compound: bid stats per auction (count, deduplication)
+bidSchema.index({ auction: 1, bidder: 1 });
+
+// Compound: auctionsWon check → bidder + highest amount
+bidSchema.index({ bidder: 1, amount: -1 });
+
+// Compound: highest bid per auction (quick lookup)
 bidSchema.index({ auction: 1, amount: -1 });
-bidSchema.index({ bidder: 1 });
 
 const Bid = mongoose.model("Bid", bidSchema);
 

@@ -158,15 +158,45 @@ userSchema.virtual("isAuthorizedSeller").get(function () {
 });
 
 // ── Indexes ────────────────────────────────────────────────
-userSchema.index({ role: 1 });
-userSchema.index({ sellerStatus: 1 });
+// Compound: getAllSellers → role + sellerStatus filter
 userSchema.index({ role: 1, sellerStatus: 1 });
 
+// Compound: getAllSellers with sort → role + sellerAppliedAt (pending queue)
+userSchema.index({ role: 1, sellerAppliedAt: -1 });
+
+// Single field: isBlocked check in authMiddleware
+userSchema.index({ isBlocked: 1 });
+
+// Single field: role filter used frequently
+userSchema.index({ role: 1 });
+
+// Compound: authMiddleware query (exact match for fresh session check)
+// findById({ _id }) uses the default _id index — no additional index needed.
+// sellerStatus already indexed individually above.
+// This compound catches the combined isBlocked+sellerStatus guard pattern:
+userSchema.index({ _id: 1, isBlocked: 1, sellerStatus: 1 });
+
 // ── Pre-save hook: hash password ───────────────────────────
-userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+
+  // 1. Validate password length BEFORE hashing:
+  if (this.password.length > 72) {
+    // bcrypt silently truncates at 72 bytes.
+    // Attacker with 73+ char pw and 72 char pw 
+    // would both "match". Prevent this:
+    return next(new Error("Password cannot exceed 72 characters."));
+  }
+
+  if (this.password.length < 8) {
+    return next(new Error("Password must be at least 8 characters."));
+  }
+
+  // 2. Use cost factor 12 (production standard):
+  const SALT_ROUNDS = 12;
   const salt = await bcrypt.genSalt(SALT_ROUNDS);
   this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
 // ── Instance method: compare password ─────────────────────

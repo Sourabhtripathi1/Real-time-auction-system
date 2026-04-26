@@ -1,63 +1,174 @@
-# Real-Time Auction System — MERN Stack
+# 🏷️ Real-Time Online Auction System
 
-A production-grade, full-stack real-time auction platform built with the **MERN stack** (MongoDB, Express, React, Node.js), **Socket.IO** for live bidding, and **Cloudinary** for cloud image management.
+> A production-grade full-stack MERN auction platform 
+> with real-time bidding, seller authorization 
+> workflows, role-based dashboards, and comprehensive 
+> security hardening.
+
+[![Node.js](https://img.shields.io/badge/Node.js-v20-green)]()
+[![React](https://img.shields.io/badge/React-18-blue)]()
+[![MongoDB](https://img.shields.io/badge/MongoDB-7-green)]()
+[![Socket.io](https://img.shields.io/badge/Socket.io-4-black)]()
+[![Tailwind](https://img.shields.io/badge/Tailwind-v4-cyan)]()
+[![License: ISC](https://img.shields.io/badge/License-ISC-yellow)]()
+
+---
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Tech Stack](#️-tech-stack)
+- [System Architecture](#️-system-architecture)
+- [Project Structure](#-project-structure)
+- [Database Design](#️-database-design)
+- [API Reference](#-api-reference)
+- [Socket.IO Events](#-socketio-event-reference)
+- [Role & Permission Matrix](#-role--permission-matrix)
+- [Auction Status Flow](#-auction-status-flow)
+- [Seller Authorization Flow](#-seller-authorization-flow)
+- [Security Measures](#-security-measures)
+- [Performance Optimizations](#-performance-optimizations)
+- [Edge Cases Handled](#-edge-cases-handled)
+- [Environment Variables](#️-environment-variables)
+- [Getting Started](#-getting-started)
+- [Scripts Reference](#-scripts-reference)
+- [How It Works](#️-how-it-works)
+- [Known Limitations](#️-known-limitations)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
 ## ✨ Features
 
-### Core Functionality
-- 🔐 **JWT Authentication** — Register, login, and protected routes with role-based access
-- 🏷️ **Role-Based Dashboards** — Separate views for `admin`, `seller`, and `bidder`
-- ⚡ **Real-Time Bidding** — Live bid updates pushed to all viewers via Socket.IO
-- 🛡️ **Anti-Sniping** — Bids placed in the final 10 seconds automatically extend the timer
-- 🔒 **Race Condition Prevention** — Atomic MongoDB `findOneAndUpdate` with optimistic concurrency guard
-- 📋 **Admin Approval Workflow** — Sellers submit auctions for review; admins approve/reject with mandatory rejection reasons
-- 🔍 **Auction Watchlist** — Bidders can save and track auctions
-- ⏱️ **Auction Lifecycle Scheduler** — Background process activates and ends auctions automatically
-- ☁️ **Cloudinary Image Management** — Upload, transform, and auto-delete auction images on the cloud
-- 🖼️ **Interactive Image Slider** — Custom-built carousel with touch/swipe, keyboard navigation, thumbnails, and autoplay
-- 🃏 **Card Grid Layout** — Modern auction browsing with live status badges, compact countdown timers, and bid flash animations
-- 🔔 **Toast Notifications** — `react-toastify` for all success, error, and warning messages
-- 🌓 **Dark / Light Mode** — Full theme support across all pages
+### 🔐 Authentication & Security
+- **JWT with issuer/audience claims + token blacklisting on logout**
+- **Fresh DB lookup on every protected request** (stale JWT bypass prevention)
+- **bcrypt cost factor 12 with 72-char truncation guard**
+- **Password strength enforcement** (uppercase, lowercase, number required)
+- **Rate limiting**: auth (10/15min), API (100/min), bids (20/min/user), uploads (30/hr)
+- **Security headers**: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- **Socket connections authenticated via JWT middleware** + blacklist check + isBlocked DB verification
+- **Multer file validation**: mimetype whitelist, extension check, filename sanitization
+- **HTML tag stripping on text inputs** (XSS prevention)
 
-### Auction Lifecycle
-```
-inactive → (seller submits) → pending → (admin approves) → approved → (scheduler activates) → active → ended
-                                          ↓ (admin rejects)
-                                        rejected → (seller edits & resubmits) → inactive
-```
+### 👤 Bidder Features
+- Browse live auctions in interactive card grid
+- Real-time bid placement with atomic race condition protection (409 Conflict UX)
+- Watchlist management with heart icon toggle
+- Personal profile management (name, contact, address, profile image)
+- Bid history tracking with pagination
+- Live countdown timer with anti-snipe extension
+- Socket reconnection with auto room re-join
 
-### Technical Highlights
-- **Atomic bid writes** — prevents double-spend with MongoDB conditional updates
-- **Socket.IO rooms** — each auction has its own broadcast room (`auction_<id>`)
-- **Real-time card updates** — bid changes and auction endings update individual cards without full re-fetch
-- **Cloudinary integration** — `multer-storage-cloudinary` for seamless upload pipeline with auto-transforms
-- **Image deletion** — old images are automatically purged from Cloudinary when auctions are updated or deleted
-- **Frontend validation** — file size (5MB), count (5 max), and type (jpg/png/webp) checks before upload
-- **Mongoose 9** — production models with indexes, pre-hooks, and validation
-- **Tailwind CSS v4** — utility-first CSS with custom `@theme` design tokens
-- **Vite + React 18** — fast HMR development experience
-- **ESM throughout** — native ES Modules on both frontend and backend
+### 🏪 Seller Features
+- Multi-step seller authorization application (businessName, businessType, description, website, socialLinks)
+- Seller status banner on dashboard (unverified/pending/rejected/authorized/suspended)
+- Full auction lifecycle management: Draft (inactive) → Submit → Pending → Approved → Active → Ended
+- Edit/delete only draft/rejected auctions (active/ended auctions are locked)
+- Editing a pending auction resets to inactive
+- Cloudinary image upload (up to 5 per auction, 5MB each, auto-transforms to 1200×800)
+- Dashboard with search, filter tabs, sort, date range, price range, pagination
+- Summary cards showing auction counts per status
+
+### 🛡️ Admin Features
+- Manage all auctions across all statuses with search/filter/pagination
+- Approve or reject pending auctions (rejection requires mandatory reason, min 10 chars)
+- Seller management tab:
+  - View all sellers with status and auction stats
+  - Authorize sellers (no reason required)
+  - Reject applications (reason required)
+  - Suspend accounts (reason required, sets isBlocked: true)
+  - Reinstate suspended sellers
+- View seller detail modal: (full profile, business info, recent auctions, current status reason, action buttons)
+- Pending auction count badges on tabs
+
+### ⚡ Real-Time System
+- Socket.IO rooms per auction (`auction_${id}`)
+- Live bid broadcasting to all room members
+- Anti-sniping: last 10s bid extends timer +10s
+- Live viewer count tracking per room
+- Automatic reconnection with room re-join
+- Reconnecting banner during connection loss
+- Ghost connection cleanup via:
+  - userRooms Map tracking
+  - pingTimeout: 20s / pingInterval: 10s
+  - disconnect handler cleanup
+
+### 🎨 UI/UX Features
+- Interactive auction card grid (3-col desktop, 2-col tablet, 1-col mobile)
+- Custom ImageSlider (no external library): arrows, dots, thumbnails, autoplay, touch/swipe, keyboard navigation, image counter badge, skeleton shimmer
+- Skeleton loading for cards and table rows
+- IntersectionObserver — defers ImageSlider init until card enters viewport
+- Avatar dropdown in Navbar: profile image (or initials fallback), role badge, profile completion bar, "My Profile" link, Logout button
+- ProfileModal with 3 tabs: Personal Info (name, contact, stats), Address (street, city, state, pincode), Security (change password + strength indicator)
+- LightboxModal for full-screen image preview
+- BlockedNotice full-screen overlay for blocked/suspended accounts
+- Toast system with auto-dismiss, progress bar, type variants
+- Role-based navbar links
+- Unsaved changes warning in ProfileModal
 
 ---
 
-## 🖥️ Tech Stack
+## 🛠️ Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18, Vite, Tailwind CSS v4 |
-| State | Context API (AuthContext, SocketContext) |
-| Routing | React Router DOM v6 |
-| HTTP Client | Axios (with JWT interceptors) |
-| Real-Time | Socket.IO client |
-| Notifications | react-toastify |
-| Backend | Node.js, Express 5 |
-| Database | MongoDB with Mongoose 9 |
-| Real-Time | Socket.IO server |
-| Auth | JSON Web Tokens (JWT) + bcryptjs |
-| Image Storage | Cloudinary (v2) + Multer + multer-storage-cloudinary |
-| Dev Tools | Nodemon, Concurrently |
+| Layer        | Technology                         | Notes                          |
+|--------------|------------------------------------|--------------------------------|
+| Frontend     | React 18 + Vite                    | SPA, fast HMR                  |
+| Styling      | Tailwind CSS v4                    | Custom @theme tokens           |
+| State        | Context API                        | Auth, Socket, Toast contexts   |
+| Routing      | React Router DOM v6                | RoleProtectedRoute + GuestRoute|
+| HTTP Client  | Axios                              | JWT interceptors, 403 handler  |
+| Real-Time    | Socket.io-client                   | Auto-reconnect configured      |
+| Notifications| React Toastify                     | Toast system                   |
+| Backend      | Node.js v20 + Express 5            | ESM modules                    |
+| Database     | MongoDB + Mongoose 9               | Indexes, lean(), transactions  |
+| Real-Time    | Socket.io 4                        | Rooms, heartbeat, auth middleware|
+| Auth         | JWT + bcryptjs                     | Blacklist, issuer/audience     |
+| File Storage | Cloudinary v2 + Multer             | Auto-transform, auto-delete    |
+| Rate Limit   | express-rate-limit                 | Per-route limits               |
+| Dev Tools    | Nodemon + Concurrently             | Parallel dev server            |
+
+---
+
+## 🏗️ System Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│                  React.js Frontend                    │
+│  Vite SPA | Tailwind v4 | React Router | Axios        │
+│  Context: Auth | Socket | Toast                       │
+└──────────────┬───────────────────────┬────────────────┘
+               │ REST (HTTPS/HTTP)     │ WSS
+               ▼                      ▼
+┌──────────────────────┐  ┌─────────────────────────┐
+│   Express.js REST    │  │   Socket.io Server       │
+│   API (Stateless)    │  │   (Stateful Rooms)       │
+│                      │  │   Auth Middleware        │
+│   Middleware Chain:  │  │   Bid Rate Limiter       │
+│   Auth → Role →      │  │   userRooms Map          │
+│   SellerAuth →       │  │   Heartbeat 10s/20s      │
+│   RateLimit →        │  │                         │
+│   Controller         │  │                         │
+└──────────┬───────────┘  └────────────┬────────────┘
+           │                           │
+           └─────────────┬─────────────┘
+                         ▼
+               ┌──────────────────┐
+               │    MongoDB        │
+               │  Mongoose 9 ODM   │
+               │  15 Indexes       │
+               │  .lean() queries  │
+               │  Atomic updates   │
+               └──────────────────┘
+                         │
+               ┌──────────────────┐
+               │  Cloudinary CDN   │
+               │  auction images   │
+               │  profile avatars  │
+               │  auto-transform   │
+               └──────────────────┘
+```
 
 ---
 
@@ -65,345 +176,705 @@ inactive → (seller submits) → pending → (admin approves) → approved → 
 
 ```
 Real-time-auction-system/
-├── package.json              ← Root runner (concurrently only)
+├── package.json                   ← Root (concurrently + install:all)
+├── README.md
+├── project.json                   ← Machine-readable project context
 │
 ├── backend/
-│   ├── package.json          ← Backend dependencies
-│   ├── server.js             ← Express + Socket.IO + Scheduler
-│   ├── seed.js               ← Database seed script (uploads images to Cloudinary)
-│   ├── .env                  ← Backend environment variables (git-ignored)
-│   ├── .env.example          ← Environment variable template
+│   ├── package.json
+│   ├── server.js                  ← Express + Socket.IO + Scheduler 
+│   │                                + Security Headers + Rate Limits
+│   ├── seed.js                    ← Seeds users + auctions + Cloudinary images
+│   ├── .env                       ← (git-ignored)
+│   ├── .env.example
+│   │
 │   ├── config/
-│   │   ├── db.js             ← MongoDB connection
-│   │   ├── cloudinary.js     ← Cloudinary v2 configuration + deleteFromCloudinary helper
-│   │   └── multer.js         ← Multer with CloudinaryStorage (5MB, 5 files, jpg/png/webp)
+│   │   ├── db.js                  ← MongoDB connection + pool config + graceful shutdown
+│   │   ├── cloudinary.js          ← Cloudinary v2 config + deleteFromCloudinary helper
+│   │   ├── multer.js              ← Multer + CloudinaryStorage 
+│   │   │                            (mimetype, extension, filename sanitization)
+│   │   └── dbIndexes.js           ← Index verification utility (dev only)
+│   │
 │   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── auctionController.js  ← Create/update/delete with Cloudinary upload & cleanup
-│   │   ├── bidController.js
-│   │   └── watchlistController.js
+│   │   ├── authController.js      ← Register, Login (issuer/audience JWT), 
+│   │   │                            Logout (blacklist), getMe
+│   │   ├── auctionController.js   ← Full CRUD + submit + approve + scheduler
+│   │   ├── bidController.js       ← Atomic $expr bid + anti-snipe + 409 Conflict
+│   │   ├── watchlistController.js ← Add, get, remove
+│   │   ├── profileController.js   ← Get profile+stats, update, 
+│   │   │                            changePassword, removeImage
+│   │   └── sellerAuthController.js← Apply, getMyStatus, getAllSellers,
+│   │                                getSellerById, updateSellerStatus
+│   │
 │   ├── middleware/
-│   │   ├── authMiddleware.js  ← JWT verification
-│   │   ├── roleMiddleware.js  ← RBAC guard (authorizeRoles + restrictRoles)
-│   │   └── errorMiddleware.js ← Global error handler
+│   │   ├── authMiddleware.js      ← JWT verify + blacklist check 
+│   │   │                            + fresh DB user fetch + isBlocked guard
+│   │   ├── roleMiddleware.js      ← authorizeRoles + restrictRoles (uses req.user)
+│   │   ├── sellerAuthMiddleware.js← requireAuthorizedSeller (uses req.user)
+│   │   ├── rateLimitMiddleware.js ← authRateLimiter, apiRateLimiter,
+│   │   │                            bidRateLimiter, uploadRateLimiter
+│   │   └── errorMiddleware.js     ← Global handler: Multer, Cloudinary, 
+│   │                                Mongoose, JWT errors
+│   │
 │   ├── models/
-│   │   ├── User.js
-│   │   ├── Auction.js         ← images: [{ url, publicId }], rejectionReason field
-│   │   ├── Bid.js
-│   │   └── Watchlist.js
+│   │   ├── User.js                ← role, isBlocked, sellerStatus, sellerProfile,
+│   │   │                            profileImage, contactNumber, address,
+│   │   │                            lastLogin, profileCompletion virtual,
+│   │   │                            bcrypt pre-save (cost 12, 72-char guard)
+│   │   ├── Auction.js             ← status enum (6 values), images [{url,publicId}],
+│   │   │                            rejectionReason, 8 compound indexes
+│   │   ├── Bid.js                 ← 3 compound indexes
+│   │   ├── Watchlist.js           ← unique compound index {user, auction}
+│   │   └── TokenBlacklist.js      ← tokenHash (SHA-256), TTL index (auto-expiry)
+│   │
 │   ├── routes/
-│   │   ├── authRoutes.js
-│   │   ├── auctionRoutes.js   ← Multer error handler for upload failures
-│   │   ├── bidRoutes.js
-│   │   └── watchlistRoutes.js
+│   │   ├── authRoutes.js          ← register, login, logout, me
+│   │   ├── auctionRoutes.js       ← Full CRUD + submit + approve
+│   │   │                            + Multer error handler
+│   │   ├── bidRoutes.js           ← place (bidRateLimiter), my-bids, :auctionId
+│   │   ├── watchlistRoutes.js     ← add, my, :auctionId (bidder only)
+│   │   ├── profileRoutes.js       ← me, update (uploadProfileImage), 
+│   │   │                            change-password, remove-image
+│   │   └── sellerRoutes.js        ← apply, my-status, all, :sellerId,
+│   │                                :sellerId/status
+│   │
 │   ├── socket/
-│   │   └── socketHandler.js   ← Room join/leave + viewer counts
+│   │   └── socketHandler.js       ← io.use() JWT+blacklist+isBlocked auth,
+│   │                                joinAuction, leaveAuction,
+│   │                                placeBid (rate-limited, re-validated),
+│   │                                disconnect cleanup, userRooms Map,
+│   │                                socketBidTracker, viewerUpdate emit
+│   │
 │   └── utils/
 │       ├── ApiError.js
-│       └── ApiResponse.js
+│       ├── ApiResponse.js
+│       └── paginateQuery.js       ← Hard-capped limit 50, buildPaginationMeta
+│                                    with from/to range
 │
 └── frontend/
     ├── package.json
-    ├── .env                   ← Frontend environment variables (git-ignored)
-    ├── .env.example           ← Environment variable template
+    ├── .env                        ← (git-ignored)
+    ├── .env.example
     ├── vite.config.js
+    ├── tailwind.config.js
+    │
     └── src/
-        ├── App.jsx            ← Router + RoleProtectedRoute + GuestRoute
+        ├── App.jsx                 ← Router + ProtectedRoute + 
+        │                             RoleProtectedRoute + GuestRoute
+        │                             + BlockedNotice overlay
         ├── main.jsx
-        ├── index.css          ← Tailwind v4 + custom theme
+        ├── index.css               ← Tailwind v4 + custom @theme tokens
+        │
         ├── context/
-        │   ├── AuthContext.jsx    ← User/token state + localStorage
-        │   └── SocketContext.jsx  ← Auto-connect on auth, room helpers
+        │   ├── AuthContext.jsx     ← user, token, profileImage, sellerStatus,
+        │   │                         isAccountBlocked, logout (blacklists token),
+        │   │                         token expiry warning, auth:expired listener
+        │   ├── SocketContext.jsx   ← Auto-connect on auth, disconnect on logout,
+        │   │                         auth error event handling
+        │   └── ToastContext.jsx    ← showToast(message, type), 
+        │                             ToastProvider, useToast hook
+        │
         ├── hooks/
-        │   ├── useCountdown.js    ← Live countdown with anti-snipe restart
-        │   └── useBid.js          ← Bid placement state machine
+        │   ├── useCountdown.js     ← Live countdown, endTime update restart
+        │   ├── useBid.js           ← Bid state machine + 409 Conflict handler
+        │   │                         + input auto-update on conflict
+        │   ├── useProfile.js       ← fetchProfile, handleUpdateProfile,
+        │   │                         handleChangePassword, handleRemoveImage
+        │   ├── useDashboardFilters.js ← search, status, sortBy, sortOrder,
+        │   │                           page, limit, dateRange, priceRange,
+        │   │                           buildQueryString, activeFilterCount
+        │   └── useIntersectionObserver.js ← Trigger once on viewport entry
+        │
         ├── services/
-        │   ├── authApi.js         ← Axios instance + interceptors
-        │   ├── auctionApi.js      ← FormData for image uploads
-        │   ├── bidApi.js
-        │   └── watchlistApi.js
-        ├── components/
-        │   ├── Navbar.jsx             ← Role-aware navigation links
-        │   ├── ImageSlider.jsx        ← Reusable carousel (arrows, dots, thumbnails, swipe, keyboard)
-        │   ├── AuctionCard.jsx        ← Card with live status badge, countdown, bid flash animation
-        │   ├── LightboxModal.jsx      ← Full-screen image viewer overlay
-        │   ├── CountdownTimer.jsx     ← Full countdown with urgency colors
-        │   ├── BidHistory.jsx
-        │   ├── CreateAuctionModal.jsx ← Image preview + validation (5 files, 5MB each)
-        │   ├── EditAuctionModal.jsx   ← Current images display + replacement flow
-        │   ├── RejectAuctionModal.jsx ← Rejection reason input (10–500 chars)
-        │   ├── AdminAuctionDetailsModal.jsx
-        │   └── Loader.jsx
+        │   ├── authApi.js          ← Axios instance + JWT interceptor 
+        │   │                         + 401 redirect + 403 blocked handler
+        │   │                         + tokenExpiresAt client check
+        │   │                         + logoutUser (blacklist + clear storage)
+        │   ├── auctionApi.js       ← FormData uploads, all auction calls
+        │   ├── bidApi.js           ← placeBid, getBidsByAuction (paginated),
+        │   │                         getMyBids
+        │   ├── watchlistApi.js
+        │   ├── profileApi.js       ← getProfile, updateProfile (FormData),
+        │   │                         changePassword, removeProfileImage
+        │   ├── sellerAuthApi.js    ← submitApplication, getMyStatus,
+        │   │                         getAllSellers, getSellerById,
+        │   │                         updateSellerStatus
+        │   └── dashboardApi.js     ← getMyAuctions, getPendingAuctions,
+        │                             getAllAuctions, getMyBids (all paginated)
+        │
         ├── socket/
-        │   └── socket.js
+        │   └── socket.js           ← Singleton, connectSocket(token),
+        │                             disconnectSocket, reconnect handling,
+        │                             server-kick detection, all auth 
+        │                             error codes handled
+        │
+        ├── components/
+        │   ├── Navbar.jsx          ← Role-aware links, avatar + initials fallback,
+        │   │                         dropdown: profile completion bar, 
+        │   │                         seller status row, My Profile, Logout
+        │   ├── ImageSlider.jsx     ← Custom carousel: arrows, dots, thumbnails,
+        │   │                         counter badge, autoplay + pause on hover,
+        │   │                         touch/swipe, keyboard, preload next,
+        │   │                         skeleton shimmer, error fallback
+        │   ├── AuctionCard.jsx     ← Status badge overlay, watchlist heart,
+        │   │                         live bid display, bid flash animation,
+        │   │                         compact countdown, Join/Ended/Soon buttons,
+        │   │                         hover lift effect, React.memo
+        │   ├── AuctionCardSkeleton.jsx ← animate-pulse card placeholder
+        │   ├── CountdownTimer.jsx  ← Color urgency: green/yellow/red,
+        │   │                         animate-pulse <10s, React.memo
+        │   ├── BidHistory.jsx      ← Scrollable, avatar + initials,
+        │   │                         highlight own bids, slide-in animation,
+        │   │                         Load More pagination, React.memo
+        │   ├── CreateAuctionModal.jsx ← Image preview thumbnails + validation
+        │   ├── EditAuctionModal.jsx   ← Pre-fill form, existing image preview,
+        │   │                           replace images logic
+        │   ├── RejectAuctionModal.jsx ← Mandatory reason (10-500 chars),
+        │   │                           live char count
+        │   ├── LightboxModal.jsx   ← Full-screen ImageSlider overlay,
+        │   │                         Escape/backdrop close
+        │   ├── BlockedNotice.jsx   ← Fixed full-screen, no escape route,
+        │   │                         contact support + logout only
+        │   ├── ProfileModal.jsx    ← 3 tabs: Personal Info (stats, fields),
+        │   │                         Address, Security (password + strength),
+        │   │                         avatar upload, profile completion bar,
+        │   │                         unsaved changes warning
+        │   ├── Toast.jsx           ← Stack, auto-dismiss 4s, progress bar,
+        │   │                         4 types, slide in/out animation
+        │   │
+        │   ├── dashboard/
+        │   │   ├── SearchBar.jsx   ← Debounced 300ms, clear button, spinner
+        │   │   ├── FilterBar.jsx   ← Expandable panel, date range, price range,
+        │   │   │                     seller search (admin), active filter badge
+        │   │   ├── Pagination.jsx  ← Smart page numbers, ellipsis, per-page
+        │   │   │                     selector, from/to display, mobile mode
+        │   │   ├── StatusTabs.jsx  ← Scrollable pill tabs with counts
+        │   │   └── SummaryCards.jsx← 6 cards per role, clickable filters,
+        │   │                         skeleton loading, animated stats
+        │   │
+        │   ├── seller/
+        │   │   ├── SellerStatusBanner.jsx  ← 5 status variants, apply/reapply
+        │   │   │                             buttons, animated pending state
+        │   │   └── SellerApplicationModal.jsx ← 3-step form, checkboxes,
+        │   │                                    view/apply/reapply modes,
+        │   │                                    unsaved changes confirm
+        │   │
+        │   └── admin/
+        │       ├── SellerManagementTable.jsx ← Full table with all actions
+        │       ├── SellerDetailModal.jsx     ← Full profile, stats, 
+        │       │                               recent auctions, action btns
+        │       └── SellerStatusActionModal.jsx ← reject/suspend/revoke,
+        │                                         reason validation
+        │
         └── pages/
-            ├── Login.jsx
-            ├── Register.jsx
-            ├── AuctionList.jsx    ← Card grid with search, filter tabs, sort, real-time socket updates
-            ├── AuctionRoom.jsx    ← Full real-time auction page with ImageSlider
-            ├── Dashboard.jsx      ← Role-based: seller (image thumbnails + lightbox) / admin / bidder
-            └── Watchlist.jsx      ← Watchlist card grid
+            ├── Login.jsx           ← Role-based redirect after login
+            ├── Register.jsx        ← Password strength indicator
+            ├── AuctionList.jsx     ← Card grid, search, filter tabs, sort,
+            │                         skeleton loading, socket bid updates,
+            │                         auto-refresh 30s, IntersectionObserver
+            ├── AuctionRoom.jsx     ← Full real-time room, ImageSlider 
+            │                         with thumbnails, bid conflict flash,
+            │                         reconnect banner, winner banner,
+            │                         Load More bids, viewerUpdate
+            ├── Dashboard.jsx       ← Seller: status banner + auction CRUD
+            │                         + summary cards + filter/paginate
+            │                         Admin: pending + all auctions + 
+            │                         manage sellers tabs
+            │                         Bidder: my bids with pagination
+            └── Watchlist.jsx       ← Card grid of saved auctions
 ```
+
+---
+
+## 🗃️ Database Design
+
+### Users Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | Auto index |
+| name | String | 2-50 chars |
+| email | String | Unique, indexed |
+| password | String | bcrypt cost 12, 72-char guard |
+| role | Enum | admin / seller / bidder |
+| profileImage | Object | { url, publicId } |
+| contactNumber | String | 10-15 digits |
+| address | Object | { street, city, state, pincode, country } |
+| isBlocked | Boolean | Default false |
+| sellerStatus | Enum | unverified / pending_review / authorized / rejected / suspended |
+| sellerProfile | Object | { businessName, businessType, description, website, socialLinks } |
+| sellerStatusReason | String | Admin-provided reason |
+| sellerStatusUpdatedAt | Date | Timestamp of last status change |
+| sellerStatusUpdatedBy | ObjectId | ref: User (admin) |
+| sellerAppliedAt | Date | Seller application timestamp |
+| lastLogin | Date | Updated on each login |
+| createdAt | Date | Auto |
+
+Virtual: profileCompletion (0-100%)
+
+Indexes:
+- `{ role: 1, sellerStatus: 1 }`
+- `{ role: 1, sellerAppliedAt: -1 }`
+- `{ _id: 1, isBlocked: 1, sellerStatus: 1 }`
+
+### Auctions Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | |
+| title | String | 5-100 chars, text indexed |
+| description | String | text indexed |
+| seller | ObjectId | ref: User |
+| basePrice | Number | |
+| currentHighestBid | Number | Default: basePrice |
+| highestBidder | ObjectId | ref: User |
+| minIncrement | Number | |
+| images | Array | [{ url, publicId }] |
+| status | Enum | inactive/pending/approved/active/ended/rejected |
+| startTime | Date | |
+| endTime | Date | |
+| approvedBy | ObjectId | ref: User |
+| rejectionReason | String | null unless rejected |
+| createdAt | Date | |
+
+Indexes:
+- `{ status: 1, endTime: 1 }`
+- `{ status: 1, startTime: 1 }`
+- `{ seller: 1, status: 1, createdAt: -1 }`
+- `{ status: 1, createdAt: -1 }`
+- `{ highestBidder: 1, status: 1 }`
+- `{ title: "text", description: "text" }` (weights: title×10, description×5)
+
+### Bids Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | |
+| auction | ObjectId | ref: Auction, indexed |
+| bidder | ObjectId | ref: User |
+| amount | Number | |
+| timestamp | Date | Default: now |
+
+Indexes:
+- `{ auction: 1, timestamp: -1 }`
+- `{ bidder: 1, timestamp: -1 }`
+- `{ auction: 1, bidder: 1 }`
+
+### Watchlists Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | |
+| user | ObjectId | ref: User |
+| auction | ObjectId | ref: Auction |
+| addedAt | Date | Default: now |
+
+Indexes:
+- `{ user: 1, auction: 1 }` (unique)
+- `{ user: 1, addedAt: -1 }`
+- `{ auction: 1 }`
+
+### TokenBlacklist Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | |
+| tokenHash | String | SHA-256 of JWT, unique, indexed |
+| expiresAt | Date | TTL index (auto-deleted by MongoDB) |
+| createdAt | Date | |
+
+---
+
+## 📡 API Reference
+
+| Method | Endpoint | Auth | Role | Rate Limit | Description |
+|--------|----------|------|------|------------|-------------|
+| POST | `/api/auth/register` | No | Any | 10/15min | Register, returns JWT |
+| POST | `/api/auth/login` | No | Any | 10/15min | Login, returns JWT + expiresAt |
+| POST | `/api/auth/logout` | Yes | Any | — | Blacklist token in DB |
+| GET | `/api/auth/me` | Yes | Any | 100/min | Get current user (fresh DB) |
+| GET | `/api/auctions/live` | No | Bidder* | 100/min | Active auctions (paginated) |
+| POST | `/api/auctions/create` | Yes | Seller† | 30/hr | Create auction (multipart) |
+| GET | `/api/auctions/mine` | Yes | Seller | 100/min | My auctions (search/filter/paginate) |
+| GET | `/api/auctions/pending` | Yes | Admin | 100/min | Pending auctions (search/filter/paginate) |
+| GET | `/api/auctions/all` | Yes | Admin | 100/min | All auctions (search/filter/paginate) |
+| GET | `/api/auctions/:id` | No | Public | 100/min | Auction detail |
+| PATCH | `/api/auctions/:id` | Yes | Seller | 30/hr | Update auction (draft/rejected only) |
+| PATCH | `/api/auctions/:id/submit` | Yes | Seller | 100/min | Submit for admin review |
+| PATCH | `/api/auctions/:id/approve` | Yes | Admin | 100/min | Approve/reject with reason |
+| DELETE | `/api/auctions/:id` | Yes | Seller | 100/min | Delete (draft/rejected only) |
+| POST | `/api/bids/place` | Yes | Bidder | 20/min | Atomic bid + 409 Conflict |
+| GET | `/api/bids/:auctionId` | No | Public | 100/min | Bid history (paginated) |
+| GET | `/api/bids/my-bids` | Yes | Bidder | 100/min | My bids (search/sort/paginate) |
+| POST | `/api/watchlist/add` | Yes | Bidder | 100/min | Add to watchlist |
+| GET | `/api/watchlist/my` | Yes | Bidder | 100/min | My watchlist |
+| DELETE | `/api/watchlist/:auctionId` | Yes | Bidder | 100/min | Remove from watchlist |
+| GET | `/api/profile/me` | Yes | Any | 100/min | Profile + role stats |
+| PATCH | `/api/profile/update` | Yes | Any | 30/hr | Update profile + avatar |
+| PATCH | `/api/profile/change-password` | Yes | Any | 100/min | Change password |
+| DELETE | `/api/profile/remove-image` | Yes | Any | 100/min | Remove avatar from Cloudinary |
+| POST | `/api/seller/apply` | Yes | Seller | 100/min | Submit seller application |
+| GET | `/api/seller/my-status` | Yes | Seller | 100/min | My seller status |
+| GET | `/api/seller/all` | Yes | Admin | 100/min | All sellers (search/filter/paginate) |
+| GET | `/api/seller/:sellerId` | Yes | Admin | 100/min | Seller detail + stats |
+| PATCH | `/api/seller/:sellerId/status` | Yes | Admin | 100/min | Authorize/reject/suspend/revoke |
+
+*Admin and Seller are restricted from `/api/auctions/live` at backend
+†Requires `sellerStatus: "authorized"` via `requireAuthorizedSeller` middleware
+
+---
+
+## ⚡ Socket.IO Event Reference
+
+| Event | Direction | Payload | Description |
+|-------|-----------|---------|-------------|
+| joinAuction | Client → Server | `{ auctionId, userId }` | Join auction room |
+| leaveAuction | Client → Server | `{ auctionId }` | Leave auction room |
+| bidUpdated | Server → Room | `{ auctionId, highestBid, highestBidder: {id,name}, timestamp }` | New bid placed |
+| timerExtended | Server → Room | `{ auctionId, newEndTime }` | Anti-snipe extension |
+| auctionEnded | Server → Room | `{ auctionId, winnerId, winnerName, finalBid }` | Auction ended |
+| viewerUpdate | Server → Room | `{ auctionId, viewers }` | Viewer count changed |
+| userJoined | Server → Room | `{ userId, totalViewers }` | User entered room |
+| bidError | Server → Client | `{ code, message }` | Bid failed (RATE_LIMITED, AUTH_BLOCKED) |
+
+Socket Connection Auth:
+- Token via `socket.handshake.auth.token`
+- Validates: JWT signature + issuer/audience + blacklist + user exists + isBlocked
+- Error codes: `AUTH_REQUIRED`, `AUTH_EXPIRED`, `AUTH_BLACKLISTED`, `AUTH_NOTFOUND`, `AUTH_BLOCKED`
+
+---
+
+## 👥 Role & Permission Matrix
+
+| Permission | Admin | Seller | Bidder |
+|------------|-------|--------|--------|
+| /auctions page | ❌ | ❌ | ✅ |
+| /auction/:id page | ❌ | ❌ | ✅ |
+| /watchlist page | ❌ | ❌ | ✅ |
+| /dashboard | ✅ | ✅ | ✅ |
+| Place bids | ❌ | ❌ | ✅ |
+| Manage watchlist | ❌ | ❌ | ✅ |
+| Create auctions | ❌ | ✅* | ❌ |
+| Submit for review | ❌ | ✅ | ❌ |
+| Edit draft auctions | ❌ | ✅ | ❌ |
+| Delete draft auctions | ❌ | ✅ | ❌ |
+| Apply for seller auth | ❌ | ✅ | ❌ |
+| Approve/reject auctions | ✅ | ❌ | ❌ |
+| Authorize sellers | ✅ | ❌ | ❌ |
+| Suspend users | ✅ | ❌ | ❌ |
+| View all auctions | ✅ | ❌ | ❌ |
+| View all sellers | ✅ | ❌ | ❌ |
+| Manage own profile | ✅ | ✅ | ✅ |
+
+*Only when sellerStatus === "authorized"
+
+---
+
+## 🔄 Auction Status Flow
+
+```
+         [Seller Creates Auction]
+                    │
+               INACTIVE ◄──────────────────────────┐
+                    │                               │
+         [Seller: Submit for Verification]  [Seller edits]
+                    │                        (resets to inactive)
+               PENDING ────────────────────────────┘
+                    │
+         [Admin Reviews]
+          ↙              ↘
+     REJECTED          APPROVED
+          │                 │
+  [Shows reason]   [Scheduler: startTime ≤ now]
+  [Can reapply]             │
+                         ACTIVE
+                     (Real-time bidding)
+                            │
+                [Scheduler: endTime ≤ now]
+                            │
+                          ENDED
+                    (Winner determined)
+```
+
+Status edit/delete rules:
+| Status | Edit | Delete | Submit |
+|--------|------|--------|--------|
+| inactive | ✅ | ✅ | ✅ |
+| pending | ✅* | ✅ | ❌ |
+| rejected | ✅ | ✅ | ✅ |
+| approved | ❌ | ❌ | ❌ |
+| active | ❌ | ❌ | ❌ |
+| ended | ❌ | ❌ | ❌ |
+
+*Editing pending resets to inactive
+
+---
+
+## 🏪 Seller Authorization Flow
+
+```
+[Register as Seller]
+         │
+    UNVERIFIED
+    (can apply)
+         │
+[Fill application: businessName, businessType,
+ description, website, socialLinks]
+         │
+  PENDING_REVIEW
+  (awaiting admin)
+         │
+   [Admin reviews]
+    ↙          ↘
+REJECTED      AUTHORIZED
+(reason)     (can create auctions)
+    │               │
+[Reapply]    [Admin action]
+              ↙           ↘
+         REVOKED        SUSPENDED
+      (→ unverified)   (isBlocked: true)
+      (reason opt.)    (reason required)
+```
+
+---
+
+## 🔒 Security Measures
+
+| Measure | Implementation | Files |
+|---------|---------------|-------|
+| JWT Hardening | issuer/audience claims, SHA-256 blacklist with MongoDB TTL | authController.js, TokenBlacklist.js |
+| Fresh DB Auth | Every protected request fetches user from DB | authMiddleware.js |
+| Token Blacklist | POST /api/auth/logout blacklists token hash | authController.js, TokenBlacklist.js |
+| Rate Limiting | express-rate-limit: auth 10/15min, api 100/min, bids 20/min, uploads 30/hr | rateLimitMiddleware.js |
+| Security Headers | X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, no X-Powered-By | server.js |
+| Socket Auth | JWT + blacklist + isBlocked on every connection, per-socket bid rate limit 20/min | socketHandler.js |
+| File Validation | Mimetype whitelist, extension check, filename sanitization, Cloudinary resource_type verify | multer.js, auctionController.js |
+| Input Sanitization | HTML tag stripping on all text inputs | auctionController.js, profileController.js |
+| bcrypt Hardening | Cost factor 12, 72-char truncation guard, strength enforcement | User.js, authController.js |
+| Session Management | tokenExpiresAt in localStorage, 5-min expiry warning, auth:expired event | AuthContext.jsx, authApi.js |
+| Blocked Users | Full-screen BlockedNotice, socket disconnect, all API calls rejected | BlockedNotice.jsx, authMiddleware.js |
+
+---
+
+## ⚡ Performance Optimizations
+
+| Optimization | Technique | Impact |
+|-------------|-----------|--------|
+| Lazy Image Loading | loading="lazy" + onLoad shimmer + IntersectionObserver | No eager image loading |
+| Skeleton UI | AuctionCardSkeleton, SkeletonRow animate-pulse | No layout shift |
+| Next Image Preload | new Image().src = nextSlide.url on slide change | Instant slide transitions |
+| MongoDB Indexes | 15 compound+single indexes across 4 collections | Query optimization |
+| .lean() Queries | All read-only controllers use .lean() | 3-5x faster, less memory |
+| Parallel Queries | Promise.all for data + count + summary | Halved DB round trips |
+| DB-Level Pagination | skip/limit at cursor, hard cap 50 | No memory array dumps |
+| React.memo | AuctionCard, BidHistory, CountdownTimer with custom comparators | Prevents cascade re-renders |
+| useCallback | Event handlers in AuctionList | Stable references to child components |
+| useMemo | Filtered/sorted auction arrays | Recompute only on dependency change |
+| Connection Pooling | maxPoolSize: 10, minPoolSize: 2 | Handle concurrent requests |
+| Text Index Search | MongoDB $text instead of $regex | Faster title search at scale |
+| Lean Auth Check | authMiddleware selects 7 fields only + .lean() | Minimal per-request overhead |
+
+---
+
+## 🔧 Edge Cases Handled
+
+| Edge Case | Solution | Files |
+|-----------|----------|-------|
+| Stale JWT bypass | authMiddleware fresh DB fetch on every request + socket io.use() | authMiddleware.js, socketHandler.js |
+| Concurrent bid race condition | findOneAndUpdate with $lt + $expr atomic guard. Returns 409 Conflict. UI auto-updates input. | bidController.js, useBid.js |
+| Ghost socket connections | userRooms Map tracks all rooms per socket. Comprehensive disconnect cleanup. viewerUpdate on leave. pingTimeout: 20s. | socketHandler.js |
+| Blocked user mid-session | authMiddleware rejects all requests. Socket disconnected at handshake. BlockedNotice shown. | authMiddleware.js, socket.js, BlockedNotice.jsx |
+| Seller suspended after active socket | socket io.use() checks isBlocked on connect. placeBid re-validates user from DB. | socketHandler.js |
+| Token reuse after logout | TokenBlacklist with SHA-256 hash + TTL index. Checked in both HTTP + socket auth. | TokenBlacklist.js, authMiddleware.js |
+| Session expiry mid-use | tokenExpiresAt checked before every request. 5-min warning. auth:expired auto-logout. | AuthContext.jsx, authApi.js |
+| File upload abuse | Multer: 5MB limit, 5 files max, mimetype + extension check, filename sanitization. | multer.js |
+| Bid input conflict | 409 response auto-refetches auction, updates input minimum, shows friendly toast. | useBid.js, AuctionRoom.jsx |
+
+---
+
+## ⚙️ Environment Variables
+
+### backend/.env
+
+| Variable | Example | Required | Description |
+|----------|---------|----------|-------------|
+| PORT | 5000 | Yes | Express server port |
+| MONGO_URI | mongodb://127.0.0.1:27017/auction-system | Yes | MongoDB connection string |
+| JWT_SECRET | change_this_secret | Yes | JWT signing key (min 32 chars in prod) |
+| JWT_EXPIRES_IN | 7d | Yes | Token expiry (7d, 24h, etc.) |
+| CLIENT_URL | http://localhost:5173 | Yes | Frontend origin for CORS |
+| NODE_ENV | development | Yes | development or production |
+| CLOUDINARY_CLOUD_NAME | your_cloud | Yes | Cloudinary account name |
+| CLOUDINARY_API_KEY | 123456789 | Yes | Cloudinary API key |
+| CLOUDINARY_API_SECRET | abc123xyz | Yes | Cloudinary API secret |
+
+### frontend/.env
+
+| Variable | Example | Required | Description |
+|----------|---------|----------|-------------|
+| VITE_API_URL | http://localhost:5000/api | Yes | Backend API base URL |
+| VITE_SOCKET_URL | http://localhost:5000 | Yes | Socket.io server URL |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+- Node.js >= 20.0.0
+- MongoDB running locally on port 27017 OR MongoDB Atlas URI
+- Cloudinary account (free tier sufficient)
+- Git
 
-- **Node.js** v20 or higher
-- **MongoDB** running locally on port `27017`
-  - [Download MongoDB Community](https://www.mongodb.com/try/download/community)
-  - Or use [MongoDB Atlas](https://www.mongodb.com/atlas) (update `MONGO_URI` in `.env`)
-- **Cloudinary account** — [Sign up free](https://cloudinary.com/users/register_free)
-
-### 1. Clone the Repository
+### Installation
 
 ```bash
+# Clone
 git clone https://github.com/Sourabhtripathi1/Real-time-auction-system.git
 cd Real-time-auction-system
-```
 
-### 2. Install Dependencies
-
-```bash
-# Install all three (root + backend + frontend) in one shot
+# Install all dependencies at once
 npm run install:all
 ```
 
-Or manually:
+### Configuration
 
 ```bash
-npm install                        # root (concurrently)
-cd backend && npm install          # backend
-cd ../frontend && npm install      # frontend
-```
-
-### 3. Configure Environment Variables
-
-**Backend** — copy the example and fill in your values:
-```bash
+# Backend
 cp backend/.env.example backend/.env
-```
+# Fill in: MONGO_URI, JWT_SECRET, 
+#          CLOUDINARY_* credentials
 
-**Frontend** — copy the example:
-```bash
+# Frontend
 cp frontend/.env.example frontend/.env
+# Defaults work for local development
 ```
 
-> See [Environment Variables](#-environment-variables) section for details.
-
-### 4. Seed the Database
-
-Populates MongoDB with test users and 15 sample auctions (10 active + 1 of each other status).
-Uploads 3 sample product images to your Cloudinary account automatically.
+### Seed Database
 
 ```bash
 npm run seed
 ```
 
-| Email | Password | Role |
-|-------|----------|------|
-| `admin@auction.com` | `admin123` | Admin |
-| `seller@auction.com` | `seller123` | Seller |
-| `bidder@auction.com` | `bidder123` | Bidder |
-| `sourabh@gmail.com` | `sourabh123` | Bidder |
+Seed accounts:
 
-> ⚠️ **Warning:** Running seed clears all existing data and uploads fresh images to Cloudinary.
+| Role | Email | Password | sellerStatus |
+|------|-------|----------|--------------|
+| Admin | admin@auction.com | admin123 | N/A |
+| Seller | seller@auction.com | seller123 | authorized |
+| Bidder | bidder@auction.com | bidder123 | N/A |
+| Bidder | sourabh@gmail.com | sourabh123 | N/A |
 
-### 5. Start the Application
+> ⚠️ Running seed CLEARS all existing data and uploads fresh images to your Cloudinary account.
+
+### Run
 
 ```bash
 npm run dev
+# Frontend: http://localhost:5173
+# Backend:  http://localhost:5000/api
+# Health:   http://localhost:5000/health
 ```
-
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:5000/api |
-| Health Check | http://localhost:5000/health |
-
----
-
-## 🔑 Environment Variables
-
-### `backend/.env`
-
-```env
-PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/auction-system
-JWT_SECRET=your_super_secret_key_change_this
-JWT_EXPIRES_IN=7d
-CLIENT_URL=http://localhost:5173
-NODE_ENV=development
-
-# Cloudinary (required for image uploads)
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-```
-
-| Variable | Description |
-|----------|-------------|
-| `PORT` | Express server port |
-| `MONGO_URI` | MongoDB connection string |
-| `JWT_SECRET` | Secret key for signing JWTs — **change this in production** |
-| `JWT_EXPIRES_IN` | Token expiry duration (e.g. `7d`, `24h`) |
-| `CLIENT_URL` | Frontend origin for CORS |
-| `NODE_ENV` | `development` or `production` |
-| `CLOUDINARY_CLOUD_NAME` | Your Cloudinary cloud name |
-| `CLOUDINARY_API_KEY` | Your Cloudinary API key |
-| `CLOUDINARY_API_SECRET` | Your Cloudinary API secret |
-
-### `frontend/.env`
-
-```env
-VITE_API_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
-```
-
-| Variable | Description |
-|----------|-------------|
-| `VITE_API_URL` | Backend REST API base URL |
-| `VITE_SOCKET_URL` | Backend Socket.IO server URL |
-
----
-
-## 🔌 Socket.IO Event Reference
-
-| Event | Direction | Payload |
-|-------|-----------|---------| 
-| `joinAuction` | Client → Server | `{ auctionId, userId }` |
-| `leaveAuction` | Client → Server | `{ auctionId }` |
-| `bidUpdated` | Server → Room | `{ auctionId, highestBid, highestBidder: { id, name }, timestamp }` |
-| `timerExtended` | Server → Room | `{ auctionId, newEndTime }` |
-| `auctionEnded` | Server → Room | `{ auctionId, winnerId, winnerName, finalBid }` |
-| `userJoined` | Server → Room | `{ userId, totalViewers }` |
-
----
-
-## 🛡️ API Endpoints
-
-### Auth
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| `POST` | `/api/auth/register` | Public | Register a new user |
-| `POST` | `/api/auth/login` | Public | Login and get JWT |
-| `GET` | `/api/auth/me` | Protected | Get current user |
-
-### Auctions
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| `GET` | `/api/auctions/live` | Bidder | List all active auctions |
-| `GET` | `/api/auctions/:id` | Public | Get auction by ID |
-| `POST` | `/api/auctions/create` | Seller | Create auction (multipart/form-data, up to 5 images) |
-| `PATCH` | `/api/auctions/:id` | Seller | Update auction (replaces images on Cloudinary) |
-| `DELETE` | `/api/auctions/:id` | Seller | Delete auction (removes images from Cloudinary) |
-| `PATCH` | `/api/auctions/:id/submit` | Seller | Submit auction for admin review |
-| `GET` | `/api/auctions/pending` | Admin | List pending auctions |
-| `PATCH` | `/api/auctions/:id/approve` | Admin | Approve or reject auction |
-| `GET` | `/api/auctions/mine` | Seller | Get seller's own auctions |
-
-### Bids
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| `POST` | `/api/bids/place` | Bidder | Place a bid |
-| `GET` | `/api/bids/:auctionId` | Bidder | Get bid history |
-
-### Watchlist
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| `POST` | `/api/watchlist/add` | Bidder | Add auction to watchlist |
-| `GET` | `/api/watchlist/my` | Bidder | Get user's watchlist |
-| `DELETE` | `/api/watchlist/:auctionId` | Bidder | Remove from watchlist |
 
 ---
 
 ## 📜 Scripts Reference
 
-Run from the **project root**:
-
 ```bash
-npm run dev          # Start backend + frontend concurrently
+# From root:
+npm run dev          # Frontend + backend concurrently
 npm run server       # Backend only (nodemon)
 npm run client       # Frontend only (Vite)
-npm run build        # Production build (frontend)
-npm run seed         # Seed database with test data + Cloudinary images
-npm run install:all  # Install all dependencies (root + backend + frontend)
-```
+npm run build        # Production frontend build
+npm run seed         # Seed database + Cloudinary
+npm run install:all  # Install all three packages
 
-Run from `backend/`:
-```bash
-npm run dev    # nodemon server.js
-npm run start  # node server.js (production)
-npm run seed   # node seed.js
+# From backend/:
+npm run dev          # nodemon server.js
+npm run start        # node server.js (production)
+npm run seed         # node seed.js
 ```
 
 ---
 
-## 🏗️ How It Works
+## ⚙️ How It Works
 
 ### Bid Placement Flow
-
 ```
-User places bid
-  → POST /api/bids/place
-  → Validate: auction active, user is bidder, bid > currentHighestBid + minIncrement
-  → Atomic findOneAndUpdate (currentHighestBid condition prevents race conditions)
-  → If bid placed in final 10s → extend endTime by 10s → emit "timerExtended"
-  → Emit "bidUpdated" to auction room
-  → All connected clients update UI instantly (card flash animation on AuctionList)
+Bidder submits bid amount
+  → POST /api/bids/place (rate limited: 20/min/user)
+  → authMiddleware: fresh DB user fetch + blacklist check
+  → Pre-validation: auction active, not seller, not blocked
+  → Atomic findOneAndUpdate with conditions:
+      status: "active"
+      currentHighestBid: { $lt: bidAmount }
+      $expr: bidAmount >= currentHighestBid + minIncrement
+  → If null (race condition): return 409 Conflict
+      → UI: toast "Someone outbid you", refetch, update input
+  → If success: 
+      → Create Bid document
+      → Check anti-snipe: endTime - now <= 10000ms
+        → If true: extend endTime +10s, emit "timerExtended"
+      → Emit "bidUpdated" to auction_${id} room
+      → All clients update instantly, card flashes indigo
 ```
 
-### Auction Lifecycle (Scheduler)
-
+### Seller Authorization Flow
 ```
-Every 60 seconds:
-  1. Find approved auctions with startTime <= now → set status: "active"
-  2. Find active auctions with endTime <= now → set status: "ended"
-     → Emit "auctionEnded" to room with winner info
+1. User registers as "seller" → sellerStatus: "unverified"
+2. Dashboard shows SellerStatusBanner (apply button)
+3. Seller fills 3-step SellerApplicationModal
+4. Submit → sellerStatus: "pending_review"
+5. Admin sees count badge on "Manage Sellers" tab
+6. Admin views SellerDetailModal → clicks Authorize/Reject
+7. On Authorize → sellerStatus: "authorized"
+   → Seller polls status every 30s (if pending)
+   → Toast: "Your account is now authorized!"
+   → Create Auction button unlocks
+8. On Reject → sellerStatus: "rejected" + reason stored
+   → Seller sees rejection reason in banner
+   → Can edit profile and reapply
 ```
 
 ### Image Upload Flow
-
 ```
-Seller creates/edits auction with images
-  → Frontend validates: max 5 files, max 5MB each, jpg/png/webp only
-  → FormData sent to backend via multipart/form-data
-  → Multer + CloudinaryStorage uploads to "auction-system" folder
-  → Cloudinary auto-transforms: 1200×800 limit, auto quality, auto format
-  → Response: [{ url: "https://res.cloudinary.com/...", publicId: "auction-system/..." }]
-  → On update: old images deleted from Cloudinary via deleteFromCloudinary()
-  → On auction delete: all images purged from Cloudinary
+Seller creates/edits auction
+  → Frontend: validate ≤5 files, ≤5MB, jpg/png/webp
+  → FormData → POST /api/auctions/create
+  → rateLimitMiddleware: 30 uploads/hr
+  → multer.js: mimetype + extension + filename checks
+  → CloudinaryStorage: upload to auction-system/auctions
+  → Transform: 1200×800 limit, auto quality, auto format
+  → Store: [{ url, publicId }] in Auction.images
+  → On update: Promise.all deleteFromCloudinary for old images
+  → On delete: purge all images + auction + bids + watchlists
 ```
 
-### Role-Based Access Control
+---
 
-| Page | Admin | Seller | Bidder |
-|------|-------|--------|--------|
-| `/dashboard` | ✅ | ✅ | ✅ |
-| `/auctions` | ❌ | ❌ | ✅ |
-| `/auction/:id` | ❌ | ❌ | ✅ |
-| `/watchlist` | ❌ | ❌ | ✅ |
-| `/login` | ✅ | ✅ | ✅ |
-| `/register` | ✅ | ✅ | ✅ |
+## ⚠️ Known Limitations
+
+- **No horizontal Socket.io scaling:** Requires Redis adapter for multi-server deployment. Current setup: single-server only.
+- **JWT in localStorage:** XSS risk (mitigated by input sanitization, security headers, Content Security Policy).
+- **No email notifications:** No email sent for auction events, bid results, or seller status changes.
+- **No payment integration:** Auction winners are determined but no payment flow exists.
 
 ---
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m 'Add some feature'`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
+2. Create feature branch: `git checkout -b feature/name`
+3. Commit: `git commit -m 'Add feature'`
+4. Push: `git push origin feature/name`
+5. Open Pull Request
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **ISC License**.
+ISC License — see LICENSE file for details.
 
 ---
-
-<p align="center">Built with ❤️ using the MERN Stack + Socket.IO + Cloudinary</p>
+<p align="center">
+  Built with ❤️ using MERN Stack + Socket.IO + Cloudinary
+</p>

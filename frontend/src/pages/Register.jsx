@@ -32,6 +32,20 @@ const Register = () => {
   const labelClass =
     "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5";
 
+  const getPasswordStrength = () => {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (password.length > 72) score = 0; // Invalid
+    return score; // Max 4
+  };
+
+  const strengthScore = getPasswordStrength();
+  const strengthColors = ["bg-gray-200 dark:bg-gray-700", "bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-green-500"];
+  const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4 py-8">
       <div className="w-full max-w-md">
@@ -95,6 +109,28 @@ const Register = () => {
                 placeholder="Min. 8 characters"
                 className={inputClass}
               />
+              {password.length > 0 && (
+                <div className="mt-2">
+                  <div className="flex gap-1 mb-1">
+                    {[1, 2, 3, 4].map((level) => (
+                      <div
+                        key={level}
+                        className={`h-1.5 w-full rounded-full transition-colors ${
+                          strengthScore >= level
+                            ? strengthColors[strengthScore]
+                            : "bg-gray-200 dark:bg-gray-700"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex justify-between">
+                    <span>{strengthLabels[strengthScore]}</span>
+                    {strengthScore < 4 && (
+                      <span>Need: upper, lower, number, min 8 chars</span>
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>

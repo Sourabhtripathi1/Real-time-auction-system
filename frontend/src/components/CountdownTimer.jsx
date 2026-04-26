@@ -1,3 +1,4 @@
+import { memo } from "react";
 import useCountdown from "../hooks/useCountdown";
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -62,4 +63,6 @@ const CountdownTimer = ({ endTime }) => {
   );
 };
 
-export default CountdownTimer;
+// React.memo: only re-render if endTime prop changes.
+// The hook internally updates via setInterval — no external trigger needed.
+export default memo(CountdownTimer, (prev, next) => prev.endTime === next.endTime);

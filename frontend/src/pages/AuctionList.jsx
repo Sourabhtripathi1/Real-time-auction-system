@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getLiveAuctions } from "../services/auctionApi";
 import { getMyWatchlist, addToWatchlist, removeFromWatchlist } from "../services/watchlistApi";
@@ -156,7 +156,7 @@ const AuctionList = () => {
   }, [socket]);
 
   // ── Watchlist Toggle ─────────────────────────────────────
-  const handleToggleWatchlist = async (auctionId) => {
+  const handleToggleWatchlist = useCallback(async (auctionId) => {
     if (!user) {
       toast.info("Please log in to manage your watchlist.");
       navigate("/login");
@@ -184,58 +184,62 @@ const AuctionList = () => {
       fetchWatchlist();
       toast.error("Failed to update watchlist");
     }
-  };
+  }, [user, watchlist, navigate, fetchWatchlist]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Filter & Sort ────────────────────────────────────────
-  const now = Date.now();
-  const TEN_MIN = 10 * 60 * 1000;
+  // ── Filter & Sort (memoized) ─────────────────────────────
+  // Only recomputes when auctions data, search, tab, or sort changes.
+  // Prevents re-running expensive filter+sort on every unrelated render.
+  const filtered = useMemo(() => {
+    const now = Date.now();
+    const TEN_MIN = 10 * 60 * 1000;
 
-  const filtered = auctions
-    .filter((a) => {
-      if (search && !a.title.toLowerCase().includes(search.toLowerCase()))
-        return false;
+    return auctions
+      .filter((a) => {
+        if (search && !a.title.toLowerCase().includes(search.toLowerCase()))
+          return false;
 
-      const isLiveEnded = liveUpdatesRef.current[a._id]?.ended;
-      const effectiveStatus = isLiveEnded ? "ended" : a.status;
-      const endMs = new Date(a.endTime).getTime();
-      const endingSoon =
-        effectiveStatus === "active" &&
-        endMs - now <= TEN_MIN &&
-        endMs - now > 0;
+        const isLiveEnded = liveUpdatesRef.current[a._id]?.ended;
+        const effectiveStatus = isLiveEnded ? "ended" : a.status;
+        const endMs = new Date(a.endTime).getTime();
+        const endingSoon =
+          effectiveStatus === "active" &&
+          endMs - now <= TEN_MIN &&
+          endMs - now > 0;
 
-      switch (activeTab) {
-        case "live":
-          return effectiveStatus === "active";
-        case "ending":
-          return endingSoon;
-        case "upcoming":
-          return (
-            effectiveStatus === "approved" || effectiveStatus === "pending"
-          );
-        default:
-          return true;
-      }
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case "ending":
-          return new Date(a.endTime) - new Date(b.endTime);
-        case "newest":
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        case "lowest":
-          return (
-            (a.currentHighestBid || a.basePrice) -
-            (b.currentHighestBid || b.basePrice)
-          );
-        case "highest":
-          return (
-            (b.currentHighestBid || b.basePrice) -
-            (a.currentHighestBid || a.basePrice)
-          );
-        default:
-          return 0;
-      }
-    });
+        switch (activeTab) {
+          case "live":
+            return effectiveStatus === "active";
+          case "ending":
+            return endingSoon;
+          case "upcoming":
+            return (
+              effectiveStatus === "approved" || effectiveStatus === "pending"
+            );
+          default:
+            return true;
+        }
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case "ending":
+            return new Date(a.endTime) - new Date(b.endTime);
+          case "newest":
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          case "lowest":
+            return (
+              (a.currentHighestBid || a.basePrice) -
+              (b.currentHighestBid || b.basePrice)
+            );
+          case "highest":
+            return (
+              (b.currentHighestBid || b.basePrice) -
+              (a.currentHighestBid || a.basePrice)
+            );
+          default:
+            return 0;
+        }
+      });
+  }, [auctions, search, activeTab, sortBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearFilters = () => {
     setSearch("");

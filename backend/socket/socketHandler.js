@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import User from "../models/User.js";
+import TokenBlacklist from "../models/TokenBlacklist.js";
 
 // ── Module-level Maps for connection tracking ──────────────
 // Maps socket.id → Set of auctionIds the socket has joined
@@ -32,17 +34,35 @@ const socketHandler = (io) => {
   // Runs on EVERY new connection attempt — before io.on("connection")
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token;
+      const token =
+        socket.handshake.auth?.token ||
+        socket.handshake.headers?.authorization?.replace("Bearer ", "");
 
       if (!token) {
-        return next(new Error("Authentication required"));
+        return next(new Error("AUTH_REQUIRED: Authentication token missing"));
       }
 
       let decoded;
       try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-      } catch {
-        return next(new Error("Invalid or expired token"));
+        decoded = jwt.verify(token, process.env.JWT_SECRET, {
+          issuer: "auction-system",
+          audience: "auction-client",
+        });
+      } catch (jwtError) {
+        if (jwtError.name === "TokenExpiredError") {
+          return next(new Error("AUTH_EXPIRED: Session expired. Please login again."));
+        }
+        return next(new Error("AUTH_INVALID: Invalid token"));
+      }
+
+      // Check blacklist
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const isBlacklisted = await TokenBlacklist.findOne({ tokenHash }, "_id", {
+        lean: true,
+      });
+
+      if (isBlacklisted) {
+        return next(new Error("AUTH_BLACKLISTED: Token invalidated"));
       }
 
       // Fresh DB check — blocks revoked/suspended users at connection time
@@ -51,11 +71,11 @@ const socketHandler = (io) => {
         .lean();
 
       if (!user) {
-        return next(new Error("User not found"));
+        return next(new Error("AUTH_NOTFOUND: User not found"));
       }
 
       if (user.isBlocked) {
-        return next(new Error("Account is blocked"));
+        return next(new Error("AUTH_BLOCKED: Account is blocked"));
       }
 
       if (user.role === "seller" && user.sellerStatus === "suspended") {

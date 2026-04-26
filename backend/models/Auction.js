@@ -95,9 +95,34 @@ const auctionSchema = new mongoose.Schema(
 );
 
 // ── Indexes ────────────────────────────────────────────────
+// Compound index: getLiveAuctions query → status="active" + sort by endTime
 auctionSchema.index({ status: 1, endTime: 1 });
-auctionSchema.index({ seller: 1, status: 1 });
-auctionSchema.index({ startTime: 1 });
+
+// Compound index: getMyAuctions → seller filter + status + createdAt sort
+auctionSchema.index({ seller: 1, status: 1, createdAt: -1 });
+
+// Compound index: scheduler activation → approved + startTime <= now
+auctionSchema.index({ status: 1, startTime: 1 });
+
+// Single-field supporting indexes
+auctionSchema.index({ seller: 1 });
+auctionSchema.index({ createdAt: -1 });
+
+// Compound: admin getAllAuctions → status filter + createdAt sort
+auctionSchema.index({ status: 1, createdAt: -1 });
+
+// Compound: auction won check → highestBidder + status
+auctionSchema.index({ highestBidder: 1, status: 1 });
+
+// Text index: enables fast full-text search on title (weight 10) and description (weight 5)
+// Much faster than regex ($regex) on large collections
+auctionSchema.index(
+  { title: "text", description: "text" },
+  {
+    weights: { title: 10, description: 5 },
+    name: "auction_text_search",
+  },
+);
 
 // ── Validation: endTime must be after startTime ────────────
 auctionSchema.pre("validate", function () {

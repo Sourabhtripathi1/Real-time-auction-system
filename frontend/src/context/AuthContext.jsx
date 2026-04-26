@@ -5,7 +5,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import { getMe } from "../services/authApi";
+import { getMe, logoutUser } from "../services/authApi";
 import { getMySellerStatus } from "../services/sellerAuthApi";
 
 const AuthContext = createContext(null);
@@ -82,6 +82,47 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener("auth:blocked", handleBlocked);
   }, []);
 
+  // Listen for token expiry events
+  useEffect(() => {
+    const handleExpiry = () => {
+      logout();
+      window.dispatchEvent(
+        new CustomEvent("toast:show", {
+          detail: {
+            message: "Session expired. Please login again.",
+            type: "warning",
+          },
+        }),
+      );
+    };
+    window.addEventListener("auth:expired", handleExpiry);
+    return () => window.removeEventListener("auth:expired", handleExpiry);
+  }, []);
+
+  // 5-minute expiry warning
+  useEffect(() => {
+    const expiresAt = localStorage.getItem("tokenExpiresAt");
+    if (!expiresAt || !token) return;
+
+    const timeUntilExpiry = parseInt(expiresAt) - Date.now();
+    const warningTime = timeUntilExpiry - 5 * 60 * 1000;
+
+    if (warningTime > 0) {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("toast:show", {
+            detail: {
+              message: "Your session expires in 5 minutes. Please save your work.",
+              type: "warning",
+              duration: 8000,
+            },
+          }),
+        );
+      }, warningTime);
+      return () => clearTimeout(timer);
+    }
+  }, [token]);
+
   const login = useCallback((userData, authToken) => {
     setUser(userData);
     setToken(authToken);
@@ -101,14 +142,12 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await logoutUser();
     setUser(null);
     setToken(null);
     setProfileImage(null);
     setSellerStatus(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("sellerStatus");
     window.location.href = "/login";
   }, []);
 

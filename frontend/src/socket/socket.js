@@ -38,30 +38,30 @@ socket.on("disconnect", (reason) => {
 });
 
 socket.on("connect_error", (error) => {
-  console.error("[Socket] Connection error:", error.message);
+  const msg = error.message;
 
-  if (
-    error.message === "Account is blocked" ||
-    error.message === "Account is suspended" ||
-    error.message === "Invalid or expired token" ||
-    error.message === "User not found"
-  ) {
-    // Auth failure from socket middleware — trigger logout flow
-    console.warn("[Socket] Auth failure on connect. Triggering logout.");
-    window.dispatchEvent(
-      new CustomEvent("auth:blocked", {
-        detail: { message: error.message },
-      }),
-    );
-    // Prevent further reconnect attempts
+  const handlers = {
+    "AUTH_REQUIRED": () => window.dispatchEvent(new CustomEvent("auth:logout")),
+    "AUTH_EXPIRED": () => window.dispatchEvent(new CustomEvent("auth:expired")),
+    "AUTH_BLACKLISTED": () => window.dispatchEvent(new CustomEvent("auth:logout")),
+    "AUTH_NOTFOUND": () => window.dispatchEvent(new CustomEvent("auth:logout")),
+    "AUTH_BLOCKED": () => window.dispatchEvent(new CustomEvent("auth:blocked", { detail: { message: "Account is blocked" } })),
+    "AUTH_INVALID": () => window.dispatchEvent(new CustomEvent("auth:logout")),
+  };
+
+  const matchedKey = Object.keys(handlers).find((key) => msg.startsWith(key));
+
+  if (matchedKey) {
+    console.warn(`[Socket] Auth failure on connect (${matchedKey}). Triggering logout/blocked.`);
+    handlers[matchedKey]();
     socket.io.opts.reconnection = false;
-  }
-
-  if (error.message === "Too many connections") {
+  } else if (msg === "Too many connections") {
     // Silently fail — don't crash UI, this is a minor edge case
     // (e.g. user has 5+ tabs open)
     console.warn("[Socket] Too many concurrent connections from this client.");
     socket.io.opts.reconnection = false;
+  } else {
+    console.error("[Socket] Connection error:", msg);
   }
 });
 

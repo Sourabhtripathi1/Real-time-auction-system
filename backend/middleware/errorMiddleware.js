@@ -1,8 +1,36 @@
 import mongoose from "mongoose";
+import multer from "multer";
 import { ApiError } from "../utils/ApiError.js";
 
 export const errorHandler = (err, req, res, next) => {
   let error = err;
+
+  // Handle Multer-specific errors:
+  if (err instanceof multer.MulterError) {
+    const multerMessages = {
+      LIMIT_FILE_SIZE: "File too large. Maximum size is 5MB per image.",
+      LIMIT_FILE_COUNT: "Too many files. Maximum 5 images allowed.",
+      LIMIT_UNEXPECTED_FILE: err.message || "Invalid file type.",
+      LIMIT_FIELD_VALUE: "Form field value too large.",
+      LIMIT_FIELD_COUNT: "Too many form fields.",
+      LIMIT_PART_COUNT: "Too many parts in form data.",
+    };
+    return res.status(400).json({
+      success: false,
+      message: multerMessages[err.code] || "File upload error",
+      code: err.code,
+    });
+  }
+
+  // Handle Cloudinary errors:
+  if (err.http_code) {
+    console.error("Cloudinary error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Image upload service error. Please try again.",
+      code: "CLOUDINARY_ERROR",
+    });
+  }
 
   // Wrap non-ApiError instances
   if (!(error instanceof ApiError)) {

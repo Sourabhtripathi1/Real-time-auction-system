@@ -6,6 +6,7 @@ import path, { dirname } from "path";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import connectDB from "./config/db.js";
+import { verifyIndexes } from "./config/dbIndexes.js";
 import { errorHandler } from "./middleware/errorMiddleware.js";
 import Auction from "./models/Auction.js";
 import socketHandler from "./socket/socketHandler.js";
@@ -15,6 +16,10 @@ import bidRoutes from "./routes/bidRoutes.js";
 import watchlistRoutes from "./routes/watchlistRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
+import {
+  apiRateLimiter,
+  authRateLimiter,
+} from "./middleware/rateLimitMiddleware.js";
 
 // ── Process-level error safety nets ───────────────────────
 process.on("uncaughtException", (err) => {
@@ -22,8 +27,14 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-// ── Connect to Database ────────────────────────────────────
+// ── Connect to Database ───────────────────────────────────────
 connectDB();
+
+// Verify indexes in development (no-op in production)
+if (process.env.NODE_ENV !== "production") {
+  // Slight delay to let Mongoose finish syncing indexes before we query them
+  setTimeout(verifyIndexes, 3000);
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -47,6 +58,26 @@ const io = new Server(httpServer, {
 app.set("io", io);
 socketHandler(io);
 
+// ── Security Headers ───────────────────────────────────────
+app.use((req, res, next) => {
+  // Prevent MIME type sniffing
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  // Prevent clickjacking
+  res.setHeader("X-Frame-Options", "DENY");
+  // XSS protection (legacy browsers)
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  // Referrer policy
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Permissions policy
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  // Remove Express signature
+  res.removeHeader("X-Powered-By");
+  next();
+});
+
+// ── Global API Rate Limit ──────────────────────────────────
+app.use("/api", apiRateLimiter);
+
 // ── HTTP Middleware ────────────────────────────────────────
 app.use(
   cors({
@@ -63,7 +94,8 @@ const __dirname = dirname(__filename);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ── API Routes ─────────────────────────────────────────────
-app.use("/api/auth", authRoutes);
+// Strict limit on auth routes
+app.use("/api/auth", authRateLimiter, authRoutes);
 app.use("/api/auctions", auctionRoutes);
 app.use("/api/bids", bidRoutes);
 app.use("/api/watchlist", watchlistRoutes);
@@ -82,33 +114,44 @@ const runAuctionScheduler = async () => {
   try {
     const now = new Date();
 
-    // Activate approved auctions whose startTime has arrived
-    const activated = await Auction.updateMany(
-      { status: "approved", startTime: { $lte: now } },
-      { $set: { status: "active" } },
-    );
+    // Run both activation and ending queries IN PARALLEL
+    // Each uses its own compound index: { status, startTime } and { status, endTime }
+    const [activated, auctionsToEnd] = await Promise.all([
+      // Activate approved auctions whose startTime has arrived
+      // Uses compound index { status: 1, startTime: 1 }
+      Auction.updateMany(
+        { status: "approved", startTime: { $lte: now } },
+        { $set: { status: "active" } },
+      ),
+
+      // Find active auctions whose endTime has passed
+      // Uses compound index { status: 1, endTime: 1 }
+      // .lean() — only reading to emit socket events; no Document methods needed
+      Auction.find(
+        { status: "active", endTime: { $lte: now } },
+        "_id highestBidder currentHighestBid title",
+      ).lean(),
+    ]);
+
     if (activated.modifiedCount > 0) {
       console.log(
         `[Scheduler] Activated ${activated.modifiedCount} auction(s)`,
       );
     }
 
-    // End active auctions whose endTime has passed
-    const auctionsToEnd = await Auction.find({
-      status: "active",
-      endTime: { $lte: now },
-    }).populate("highestBidder", "name");
-
     if (auctionsToEnd.length > 0) {
+      // Bulk update all ended auctions in ONE query
       await Auction.updateMany(
         { _id: { $in: auctionsToEnd.map((a) => a._id) } },
         { $set: { status: "ended" } },
       );
+
+      // Emit auctionEnded for each auction in the ended batch
       for (const auction of auctionsToEnd) {
         io.to(`auction_${auction._id}`).emit("auctionEnded", {
           auctionId: auction._id,
-          winnerId: auction.highestBidder?._id || null,
-          winnerName: auction.highestBidder?.name || null,
+          winnerId: auction.highestBidder || null,
+          winnerName: null, // lean() doesn't populate; name resolved client-side
           finalBid: auction.currentHighestBid,
         });
         console.log(`[Scheduler] Ended auction: ${auction.title}`);

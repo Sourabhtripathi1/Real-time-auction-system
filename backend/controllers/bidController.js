@@ -189,14 +189,32 @@ export const getBidsByAuction = async (req, res, next) => {
   try {
     const { auctionId } = req.params;
 
-    const bids = await Bid.find({ auction: auctionId })
-      .populate("bidder", "name profileImage")
-      .sort({ timestamp: -1 })
-      .limit(50);
+    // Default to 20 bids per page (most recent first)
+    // Uses compound index { auction: 1, timestamp: -1 } for O(log n) lookup
+    const { pageNum, limitNum, skip } = paginateQuery({
+      page: req.query.page,
+      limit: req.query.limit || 20,
+    });
+
+    const [bids, total] = await Promise.all([
+      Bid.find({ auction: auctionId })
+        .populate("bidder", "name profileImage")
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Bid.countDocuments({ auction: auctionId }),
+    ]);
 
     res
       .status(200)
-      .json(new ApiResponse(200, bids, "Bids retrieved successfully"));
+      .json(
+        new ApiResponse(
+          200,
+          { bids, pagination: buildPaginationMeta(total, pageNum, limitNum) },
+          "Bids retrieved successfully",
+        ),
+      );
   } catch (error) {
     next(error);
   }

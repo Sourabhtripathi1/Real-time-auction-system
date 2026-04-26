@@ -16,6 +16,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import { authorizeRoles, restrictRoles } from "../middleware/roleMiddleware.js";
 import { uploadAuctionImages } from "../config/multer.js";
 import requireAuthorizedSeller from "../middleware/sellerAuthMiddleware.js";
+import { uploadRateLimiter } from "../middleware/rateLimitMiddleware.js";
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.post(
   protect,
   authorizeRoles("seller"),
   requireAuthorizedSeller,
+  uploadRateLimiter,
   uploadAuctionImages,
   createAuction,
 );
@@ -38,6 +40,7 @@ router.patch(
   "/:id",
   protect,
   authorizeRoles("seller"),
+  uploadRateLimiter,
   uploadAuctionImages,
   updateAuction,
 );

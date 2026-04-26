@@ -25,8 +25,14 @@ const watchlistSchema = new mongoose.Schema(
 );
 
 // ── Indexes ────────────────────────────────────────────────
-// Unique compound index prevents duplicate watchlist entries
+// Unique compound: prevents duplicate watchlist entries
 watchlistSchema.index({ user: 1, auction: 1 }, { unique: true });
+
+// Compound: getMyWatchlist → user filter + sort by addedAt desc
+watchlistSchema.index({ user: 1, addedAt: -1 });
+
+// Single: cascade cleanup when an auction is deleted
+watchlistSchema.index({ auction: 1 });
 
 const Watchlist = mongoose.model("Watchlist", watchlistSchema);
 

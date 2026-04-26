@@ -1,0 +1,657 @@
+{
+  "meta": {
+    "file": "project.json",
+    "version": "2.0.0",
+    "description": "Complete machine-readable project context for the MERN Real-Time Auction System.",
+    "project_root": "Real-time-auction-system",
+    "repository": "https://github.com/Sourabhtripathi1/Real-time-auction-system"
+  },
+  "project_overview": {
+    "title": "Real-Time Online Auction System",
+    "description": "A production-grade full-stack MERN auction platform with real-time bidding, seller authorization workflows, role-based dashboards, and comprehensive security hardening.",
+    "domain": "E-commerce / Bidding",
+    "type": "Single Page Application (SPA)",
+    "target_users": ["Bidders", "Sellers", "Administrators"],
+    "version": "2.0.0",
+    "status": "production-ready"
+  },
+  "tech_stack": {
+    "frontend": {
+      "framework": "React 18",
+      "bundler": "Vite",
+      "styling": "Tailwind CSS v4",
+      "routing": "React Router DOM v6",
+      "http": "Axios",
+      "realtime": "Socket.io-client",
+      "notifications": "React Toastify",
+      "state": "Context API"
+    },
+    "backend": {
+      "runtime": "Node.js v20",
+      "framework": "Express 5",
+      "database": "MongoDB + Mongoose 9",
+      "realtime": "Socket.io 4",
+      "auth": "JWT + bcryptjs",
+      "uploads": "Multer + multer-storage-cloudinary",
+      "storage": "Cloudinary v2",
+      "ratelimit": "express-rate-limit"
+    },
+    "devtools": {
+      "runner": "Concurrently",
+      "watcher": "Nodemon",
+      "modules": "ESM (native)"
+    }
+  },
+  "environment_variables": {
+    "backend": [
+      { "key": "PORT", "example": "5000", "required": true, "description": "Express server port" },
+      { "key": "MONGO_URI", "example": "mongodb://127.0.0.1:27017/auction-system", "required": true, "description": "MongoDB connection string" },
+      { "key": "JWT_SECRET", "example": "change_this_secret", "required": true, "description": "JWT signing key (min 32 chars in prod)" },
+      { "key": "JWT_EXPIRES_IN", "example": "7d", "required": true, "description": "Token expiry (7d, 24h, etc.)" },
+      { "key": "CLIENT_URL", "example": "http://localhost:5173", "required": true, "description": "Frontend origin for CORS" },
+      { "key": "NODE_ENV", "example": "development", "required": true, "description": "development or production" },
+      { "key": "CLOUDINARY_CLOUD_NAME", "example": "your_cloud", "required": true, "description": "Cloudinary account name" },
+      { "key": "CLOUDINARY_API_KEY", "example": "123456789", "required": true, "description": "Cloudinary API key" },
+      { "key": "CLOUDINARY_API_SECRET", "example": "abc123xyz", "required": true, "description": "Cloudinary API secret" }
+    ],
+    "frontend": [
+      { "key": "VITE_API_URL", "example": "http://localhost:5000/api", "required": true, "description": "Backend API base URL" },
+      { "key": "VITE_SOCKET_URL", "example": "http://localhost:5000", "required": true, "description": "Socket.io server URL" }
+    ]
+  },
+  "user_roles": [
+    {
+      "role": "admin",
+      "display_name": "Administrator",
+      "permissions": [
+        "View all auctions",
+        "View all sellers",
+        "Approve/reject auctions",
+        "Authorize sellers",
+        "Suspend users",
+        "Manage own profile",
+        "Access dashboard"
+      ],
+      "dashboard_tabs": [
+        "Pending Approvals",
+        "All Auctions",
+        "Manage Sellers"
+      ],
+      "restricted_pages": [
+        "/auctions",
+        "/watchlist",
+        "/auction/:id"
+      ]
+    },
+    {
+      "role": "seller",
+      "display_name": "Seller",
+      "permissions": [
+        "Apply for seller auth",
+        "Create auctions (if authorized)",
+        "Submit for review",
+        "Edit draft auctions",
+        "Delete draft auctions",
+        "Manage own profile",
+        "Access dashboard"
+      ],
+      "dashboard_tabs": [
+        "My Auctions"
+      ],
+      "restricted_pages": [
+        "/auctions",
+        "/watchlist",
+        "/auction/:id"
+      ],
+      "requires_authorization": true
+    },
+    {
+      "role": "bidder",
+      "display_name": "Bidder",
+      "permissions": [
+        "Browse auctions",
+        "Place bids",
+        "Manage watchlist",
+        "Manage own profile",
+        "Access dashboard"
+      ],
+      "accessible_pages": [
+        "/auctions",
+        "/auction/:id",
+        "/watchlist",
+        "/dashboard"
+      ]
+    }
+  ],
+  "database_design": {
+    "collections": [
+      {
+        "name": "users",
+        "model_file": "backend/models/User.js",
+        "fields": [
+          { "name": "_id", "type": "ObjectId", "required": true, "indexed": true, "notes": "Auto index" },
+          { "name": "name", "type": "String", "required": true, "indexed": false, "notes": "2-50 chars" },
+          { "name": "email", "type": "String", "required": true, "indexed": true, "notes": "Unique" },
+          { "name": "password", "type": "String", "required": true, "indexed": false, "notes": "bcrypt cost 12, 72-char guard" },
+          { "name": "role", "type": "Enum", "required": true, "indexed": true, "notes": "admin/seller/bidder" },
+          { "name": "profileImage", "type": "Object", "required": false, "indexed": false, "notes": "{ url, publicId }" },
+          { "name": "contactNumber", "type": "String", "required": false, "indexed": false, "notes": "10-15 digits" },
+          { "name": "address", "type": "Object", "required": false, "indexed": false, "notes": "{ street, city, state, pincode, country }" },
+          { "name": "isBlocked", "type": "Boolean", "required": true, "indexed": true, "notes": "Default false" },
+          { "name": "sellerStatus", "type": "Enum", "required": true, "indexed": true, "notes": "unverified / pending_review / authorized / rejected / suspended" },
+          { "name": "sellerProfile", "type": "Object", "required": false, "indexed": false, "notes": "{ businessName, businessType, description, website, socialLinks }" },
+          { "name": "sellerStatusReason", "type": "String", "required": false, "indexed": false, "notes": "Admin-provided reason" },
+          { "name": "sellerStatusUpdatedAt", "type": "Date", "required": false, "indexed": false, "notes": "Timestamp of last status change" },
+          { "name": "sellerStatusUpdatedBy", "type": "ObjectId", "required": false, "indexed": false, "notes": "ref: User (admin)" },
+          { "name": "sellerAppliedAt", "type": "Date", "required": false, "indexed": true, "notes": "Seller application timestamp" },
+          { "name": "lastLogin", "type": "Date", "required": false, "indexed": false, "notes": "Updated on each login" },
+          { "name": "createdAt", "type": "Date", "required": true, "indexed": false, "notes": "Auto" }
+        ],
+        "indexes": [
+          { "fields": { "role": 1, "sellerStatus": 1 }, "purpose": "getAllSellers filter" },
+          { "fields": { "role": 1, "sellerAppliedAt": -1 }, "purpose": "getAllSellers sort" },
+          { "fields": { "isBlocked": 1 }, "purpose": "authMiddleware check" },
+          { "fields": { "role": 1 }, "purpose": "Role filtering" },
+          { "fields": { "_id": 1, "isBlocked": 1, "sellerStatus": 1 }, "purpose": "Auth fresh lookup check" }
+        ],
+        "virtuals": [
+          "profileCompletion (0-100%)",
+          "isAuthorizedSeller"
+        ],
+        "hooks": [
+          "pre-save: bcrypt hash, 72-char guard"
+        ]
+      },
+      {
+        "name": "auctions",
+        "model_file": "backend/models/Auction.js",
+        "fields": [
+          { "name": "_id", "type": "ObjectId", "required": true, "indexed": true, "notes": "" },
+          { "name": "title", "type": "String", "required": true, "indexed": true, "notes": "5-100 chars, text indexed" },
+          { "name": "description", "type": "String", "required": true, "indexed": true, "notes": "text indexed" },
+          { "name": "seller", "type": "ObjectId", "required": true, "indexed": true, "notes": "ref: User" },
+          { "name": "basePrice", "type": "Number", "required": true, "indexed": false, "notes": "" },
+          { "name": "currentHighestBid", "type": "Number", "required": true, "indexed": false, "notes": "Default: basePrice" },
+          { "name": "highestBidder", "type": "ObjectId", "required": false, "indexed": true, "notes": "ref: User" },
+          { "name": "minIncrement", "type": "Number", "required": true, "indexed": false, "notes": "" },
+          { "name": "images", "type": "Array", "required": false, "indexed": false, "notes": "[{ url, publicId }]" },
+          { "name": "status", "type": "Enum", "required": true, "indexed": true, "notes": "inactive/pending/approved/active/ended/rejected" },
+          { "name": "startTime", "type": "Date", "required": true, "indexed": true, "notes": "" },
+          { "name": "endTime", "type": "Date", "required": true, "indexed": true, "notes": "" },
+          { "name": "approvedBy", "type": "ObjectId", "required": false, "indexed": false, "notes": "ref: User" },
+          { "name": "rejectionReason", "type": "String", "required": false, "indexed": false, "notes": "null unless rejected" },
+          { "name": "createdAt", "type": "Date", "required": true, "indexed": true, "notes": "" }
+        ],
+        "indexes": [
+          { "fields": { "status": 1, "endTime": 1 }, "purpose": "scheduler query" },
+          { "fields": { "status": 1, "startTime": 1 }, "purpose": "scheduler query" },
+          { "fields": { "seller": 1, "status": 1, "createdAt": -1 }, "purpose": "seller dashboard" },
+          { "fields": { "status": 1, "createdAt": -1 }, "purpose": "admin dashboard" },
+          { "fields": { "highestBidder": 1, "status": 1 }, "purpose": "bidder queries" },
+          { "fields": { "title": "text", "description": "text" }, "weights": { "title": 10, "description": 5 }, "purpose": "text search" }
+        ]
+      },
+      {
+        "name": "bids",
+        "model_file": "backend/models/Bid.js",
+        "fields": [
+          { "name": "_id", "type": "ObjectId", "required": true, "indexed": true, "notes": "" },
+          { "name": "auction", "type": "ObjectId", "required": true, "indexed": true, "notes": "ref: Auction" },
+          { "name": "bidder", "type": "ObjectId", "required": true, "indexed": true, "notes": "ref: User" },
+          { "name": "amount", "type": "Number", "required": true, "indexed": false, "notes": "" },
+          { "name": "timestamp", "type": "Date", "required": true, "indexed": true, "notes": "Default: now" }
+        ],
+        "indexes": [
+          { "fields": { "auction": 1, "timestamp": -1 }, "purpose": "bid history" },
+          { "fields": { "bidder": 1, "timestamp": -1 }, "purpose": "my bids" },
+          { "fields": { "auction": 1, "bidder": 1 }, "purpose": "auction bidder checks" }
+        ]
+      },
+      {
+        "name": "watchlists",
+        "model_file": "backend/models/Watchlist.js",
+        "fields": [
+          { "name": "_id", "type": "ObjectId", "required": true, "indexed": true, "notes": "" },
+          { "name": "user", "type": "ObjectId", "required": true, "indexed": true, "notes": "ref: User" },
+          { "name": "auction", "type": "ObjectId", "required": true, "indexed": true, "notes": "ref: Auction" },
+          { "name": "addedAt", "type": "Date", "required": true, "indexed": true, "notes": "Default: now" }
+        ],
+        "indexes": [
+          { "fields": { "user": 1, "auction": 1 }, "unique": true, "purpose": "unique watchlist" },
+          { "fields": { "user": 1, "addedAt": -1 }, "purpose": "my watchlist sort" },
+          { "fields": { "auction": 1 }, "purpose": "auction relation" }
+        ]
+      },
+      {
+        "name": "tokenblacklists",
+        "model_file": "backend/models/TokenBlacklist.js",
+        "fields": [
+          { "name": "tokenHash", "type": "String", "required": true, "indexed": true, "notes": "SHA-256 of JWT, unique" },
+          { "name": "expiresAt", "type": "Date", "required": true, "indexed": true, "notes": "TTL index — auto-deleted on expiry" },
+          { "name": "createdAt", "type": "Date", "required": true, "indexed": false, "notes": "Auto" }
+        ],
+        "indexes": [
+          { "fields": { "tokenHash": 1 }, "unique": true, "purpose": "fast blacklist lookup" },
+          { "fields": { "expiresAt": 1 }, "expireAfterSeconds": 0, "purpose": "auto-delete expired tokens" }
+        ]
+      }
+    ]
+  },
+  "api_endpoints": [
+    { "method": "POST", "path": "/api/auth/register", "auth": false, "roles": ["any"], "rate_limit": "10/15min", "middleware_chain": ["authRateLimiter"], "description": "Register, returns JWT", "body": ["name", "email", "password", "role"], "response_shape": "{ user, token, expiresAt }" },
+    { "method": "POST", "path": "/api/auth/login", "auth": false, "roles": ["any"], "rate_limit": "10/15min", "middleware_chain": ["authRateLimiter"], "description": "Login, returns JWT + expiresAt", "body": ["email", "password"], "response_shape": "{ user, token, expiresAt }" },
+    { "method": "POST", "path": "/api/auth/logout", "auth": true, "roles": ["any"], "rate_limit": "none", "middleware_chain": ["protect"], "description": "Blacklist token in DB", "body": [], "response_shape": "{ message }" },
+    { "method": "GET", "path": "/api/auth/me", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect", "apiRateLimiter"], "description": "Get current user (fresh DB)", "response_shape": "{ user }" },
+    { "method": "GET", "path": "/api/auctions/live", "auth": false, "roles": ["bidder", "guest"], "rate_limit": "100/min", "middleware_chain": ["restrictRoles('admin','seller')"], "description": "Active auctions (paginated)", "response_shape": "{ auctions, pagination }" },
+    { "method": "POST", "path": "/api/auctions/create", "auth": true, "roles": ["seller"], "rate_limit": "30/hr", "middleware_chain": ["protect", "authorizeRoles('seller')", "requireAuthorizedSeller", "uploadRateLimiter", "uploadAuctionImages"], "description": "Create auction (multipart)", "body": ["title", "description", "basePrice", "minIncrement", "startTime", "endTime", "images"], "response_shape": "{ auction }" },
+    { "method": "GET", "path": "/api/auctions/mine", "auth": true, "roles": ["seller"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('seller')"], "description": "My auctions (search/filter/paginate)", "response_shape": "{ auctions, pagination }" },
+    { "method": "GET", "path": "/api/auctions/pending", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "Pending auctions (search/filter/paginate)", "response_shape": "{ auctions, pagination }" },
+    { "method": "GET", "path": "/api/auctions/all", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "All auctions (search/filter/paginate)", "response_shape": "{ auctions, pagination, summary }" },
+    { "method": "GET", "path": "/api/auctions/:id", "auth": false, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": [], "description": "Auction detail", "response_shape": "{ auction }" },
+    { "method": "PATCH", "path": "/api/auctions/:id", "auth": true, "roles": ["seller"], "rate_limit": "30/hr", "middleware_chain": ["protect", "authorizeRoles('seller')", "uploadRateLimiter", "uploadAuctionImages"], "description": "Update auction (draft/rejected only)", "body": ["title", "description", "basePrice", "minIncrement", "startTime", "endTime", "images"], "response_shape": "{ auction }" },
+    { "method": "PATCH", "path": "/api/auctions/:id/submit", "auth": true, "roles": ["seller"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('seller')"], "description": "Submit for admin review", "body": [], "response_shape": "{ auction }" },
+    { "method": "PATCH", "path": "/api/auctions/:id/approve", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "Approve/reject with reason", "body": ["status", "reason"], "response_shape": "{ auction }" },
+    { "method": "DELETE", "path": "/api/auctions/:id", "auth": true, "roles": ["seller"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('seller')"], "description": "Delete (draft/rejected only)", "body": [], "response_shape": "{ message }" },
+    { "method": "POST", "path": "/api/bids/place", "auth": true, "roles": ["bidder"], "rate_limit": "20/min", "middleware_chain": ["protect", "bidRateLimiter", "authorizeRoles('bidder')"], "description": "Atomic bid + 409 Conflict", "body": ["auctionId", "amount"], "response_shape": "{ bid, auction }" },
+    { "method": "GET", "path": "/api/bids/:auctionId", "auth": false, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["restrictRoles('admin','seller')"], "description": "Bid history (paginated)", "response_shape": "{ bids, pagination }" },
+    { "method": "GET", "path": "/api/bids/my-bids", "auth": true, "roles": ["bidder"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('bidder')"], "description": "My bids (search/sort/paginate)", "response_shape": "{ bids, pagination }" },
+    { "method": "POST", "path": "/api/watchlist/add", "auth": true, "roles": ["bidder"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('bidder')"], "description": "Add to watchlist", "body": ["auctionId"], "response_shape": "{ watchlist }" },
+    { "method": "GET", "path": "/api/watchlist/my", "auth": true, "roles": ["bidder"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('bidder')"], "description": "My watchlist", "response_shape": "{ watchlist, pagination }" },
+    { "method": "DELETE", "path": "/api/watchlist/:auctionId", "auth": true, "roles": ["bidder"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('bidder')"], "description": "Remove from watchlist", "body": [], "response_shape": "{ message }" },
+    { "method": "GET", "path": "/api/profile/me", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Profile + role stats", "response_shape": "{ user, stats }" },
+    { "method": "PATCH", "path": "/api/profile/update", "auth": true, "roles": ["any"], "rate_limit": "30/hr", "middleware_chain": ["protect", "uploadRateLimiter", "uploadProfileImage"], "description": "Update profile + avatar", "body": ["name", "contactNumber", "address", "profileImage"], "response_shape": "{ user }" },
+    { "method": "PATCH", "path": "/api/profile/change-password", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Change password", "body": ["currentPassword", "newPassword"], "response_shape": "{ message }" },
+    { "method": "DELETE", "path": "/api/profile/remove-image", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Remove avatar from Cloudinary", "body": [], "response_shape": "{ user }" },
+    { "method": "POST", "path": "/api/seller/apply", "auth": true, "roles": ["seller"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('seller')"], "description": "Submit seller application", "body": ["businessName", "businessType", "description", "website", "socialLinks"], "response_shape": "{ user }" },
+    { "method": "GET", "path": "/api/seller/my-status", "auth": true, "roles": ["seller"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('seller')"], "description": "My seller status", "response_shape": "{ sellerStatus, sellerStatusReason }" },
+    { "method": "GET", "path": "/api/seller/all", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "All sellers (search/filter/paginate)", "response_shape": "{ sellers, pagination }" },
+    { "method": "GET", "path": "/api/seller/:sellerId", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "Seller detail + stats", "response_shape": "{ seller, stats }" },
+    { "method": "PATCH", "path": "/api/seller/:sellerId/status", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "Authorize/reject/suspend/revoke", "body": ["status", "reason"], "response_shape": "{ seller }" }
+  ],
+  "realtime_system": {
+    "library": "Socket.io 4",
+    "transport": "websocket (polling fallback)",
+    "ping_timeout": 20000,
+    "ping_interval": 10000,
+    "connect_timeout": 10000,
+    "auth_method": "JWT via socket.handshake.auth.token",
+    "auth_checks": [
+      "JWT signature + issuer/audience",
+      "TokenBlacklist check (SHA-256)",
+      "Fresh DB user fetch",
+      "isBlocked check"
+    ],
+    "room_pattern": "auction_${auctionId}",
+    "tracking": {
+      "userRooms": "Map<socketId, Set<auctionId>>",
+      "userConnectionCount": "Map<userId, count>",
+      "socketBidTracker": "Map<socketId, {count, resetAt}>",
+      "max_connections_per_user": 5,
+      "max_bids_per_minute": 20
+    },
+    "events": [
+      { "name": "joinAuction", "direction": "Client -> Server", "payload": "{ auctionId, userId }" },
+      { "name": "leaveAuction", "direction": "Client -> Server", "payload": "{ auctionId }" },
+      { "name": "bidUpdated", "direction": "Server -> Room", "payload": "{ auctionId, highestBid, highestBidder: {id,name}, timestamp }" },
+      { "name": "timerExtended", "direction": "Server -> Room", "payload": "{ auctionId, newEndTime }" },
+      { "name": "auctionEnded", "direction": "Server -> Room", "payload": "{ auctionId, winnerId, winnerName, finalBid }" },
+      { "name": "viewerUpdate", "direction": "Server -> Room", "payload": "{ auctionId, viewers }" },
+      { "name": "userJoined", "direction": "Server -> Room", "payload": "{ userId, totalViewers }" },
+      { "name": "bidError", "direction": "Server -> Client", "payload": "{ code, message }" }
+    ]
+  },
+  "auction_statuses": {
+    "values": ["inactive", "pending", "approved", "active", "ended", "rejected"],
+    "default": "inactive",
+    "transitions": [
+      { "from": "inactive", "to": "pending", "trigger": "Seller submits", "actor": "Seller" },
+      { "from": "pending", "to": "inactive", "trigger": "Seller edits", "actor": "Seller" },
+      { "from": "pending", "to": "approved", "trigger": "Admin approves", "actor": "Admin" },
+      { "from": "pending", "to": "rejected", "trigger": "Admin rejects (with reason)", "actor": "Admin" },
+      { "from": "approved", "to": "active", "trigger": "Scheduler (startTime <= now)", "actor": "System" },
+      { "from": "active", "to": "ended", "trigger": "Scheduler (endTime <= now)", "actor": "System" }
+    ],
+    "editability": {
+      "inactive": { "can_edit": true, "can_delete": true, "can_submit": true },
+      "pending": { "can_edit": true, "can_delete": true, "can_submit": false, "note": "Editing resets status to inactive" },
+      "rejected": { "can_edit": true, "can_delete": true, "can_submit": true },
+      "approved": { "can_edit": false, "can_delete": false, "can_submit": false },
+      "active": { "can_edit": false, "can_delete": false, "can_submit": false },
+      "ended": { "can_edit": false, "can_delete": false, "can_submit": false }
+    }
+  },
+  "seller_authorization": {
+    "statuses": ["unverified", "pending_review", "authorized", "rejected", "suspended"],
+    "default": "unverified",
+    "transitions": [
+      { "from": "unverified", "to": "pending_review", "trigger": "Seller applies", "actor": "Seller" },
+      { "from": "pending_review", "to": "authorized", "trigger": "Admin authorizes", "actor": "Admin" },
+      { "from": "pending_review", "to": "rejected", "trigger": "Admin rejects (with reason)", "actor": "Admin" },
+      { "from": "rejected", "to": "pending_review", "trigger": "Seller reapplies", "actor": "Seller" },
+      { "from": "authorized", "to": "suspended", "trigger": "Admin suspends (with reason)", "actor": "Admin" },
+      { "from": "suspended", "to": "authorized", "trigger": "Admin reinstates", "actor": "Admin" },
+      { "from": "authorized", "to": "unverified", "trigger": "Admin revokes", "actor": "Admin" }
+    ],
+    "application_fields": ["businessName", "businessType", "description", "website", "socialLinks"],
+    "business_types": ["individual", "small_business", "company", "other"],
+    "effects": {
+      "suspended": "Also sets isBlocked: true",
+      "revoke": "Sets isBlocked: false, status: unverified"
+    },
+    "polling": {
+      "frontend": true,
+      "interval": 30000,
+      "condition": "Only when sellerStatus === pending_review"
+    }
+  },
+  "business_rules": [
+    {
+      "rule": "Sellers cannot bid on their own auctions",
+      "enforced_in": ["bidController", "socketHandler"],
+      "error_code": 403
+    },
+    {
+      "rule": "Bid >= currentHighestBid + minIncrement",
+      "enforced_in": ["bidController (atomic $expr)"],
+      "error_code": 400,
+      "conflict_code": 409
+    },
+    {
+      "rule": "Only authorized sellers create auctions",
+      "enforced_in": ["requireAuthorizedSeller middleware", "auctionController defense-in-depth"],
+      "error_code": 403
+    },
+    {
+      "rule": "Blocked users lose all API access",
+      "enforced_in": ["authMiddleware", "socketHandler"],
+      "error_code": 403
+    },
+    {
+      "rule": "Anti-sniping: last 10s bid extends +10s",
+      "enforced_in": ["bidController"],
+      "event": "timerExtended"
+    },
+    {
+      "rule": "Admin rejection requires reason (10-500 chars)",
+      "enforced_in": ["auctionController", "sellerAuthController"],
+      "applies_to": ["auction rejection", "seller rejection/suspension"]
+    },
+    {
+      "rule": "Editing pending/rejected auction resets to inactive",
+      "enforced_in": ["auctionController.updateAuction"],
+      "note": "Requires resubmission for verification"
+    }
+  ],
+  "security_measures": [
+    {
+      "measure": "JWT Hardening",
+      "description": "issuer/audience claims, SHA-256 blacklist with MongoDB TTL",
+      "implementation_details": "Sign and verify with audience + issuer, use TokenBlacklist on logout",
+      "files": ["authController.js", "TokenBlacklist.js"]
+    },
+    {
+      "measure": "Fresh DB Auth",
+      "description": "Every protected request fetches user from DB",
+      "implementation_details": "Blocks stale JWTs if account blocked/suspended",
+      "files": ["authMiddleware.js"]
+    },
+    {
+      "measure": "Token Blacklist",
+      "description": "POST /api/auth/logout blacklists token hash",
+      "implementation_details": "TTL index matches exp claim",
+      "files": ["authController.js", "TokenBlacklist.js"]
+    },
+    {
+      "measure": "Rate Limiting",
+      "description": "express-rate-limit configured",
+      "implementation_details": "auth 10/15min, api 100/min, bids 20/min, uploads 30/hr",
+      "files": ["rateLimitMiddleware.js"]
+    },
+    {
+      "measure": "Security Headers",
+      "description": "Custom headers in Express",
+      "implementation_details": "X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy",
+      "files": ["server.js"]
+    },
+    {
+      "measure": "Socket Auth",
+      "description": "JWT + blacklist + isBlocked on every connection",
+      "implementation_details": "Re-fetch user and check connection count",
+      "files": ["socketHandler.js"]
+    },
+    {
+      "measure": "File Validation",
+      "description": "Mimetype whitelist, extension check, filename sanitization",
+      "implementation_details": "Multer file filter + Cloudinary resource_type verify",
+      "files": ["multer.js", "auctionController.js"]
+    },
+    {
+      "measure": "Input Sanitization",
+      "description": "HTML tag stripping on text inputs",
+      "implementation_details": "Regex remove <[^>]*> on auction title and desc",
+      "files": ["auctionController.js", "profileController.js"]
+    },
+    {
+      "measure": "bcrypt Hardening",
+      "description": "Cost factor 12, 72-char truncation guard, strength enforcement",
+      "implementation_details": "Check length < 72 before hash, use salt rounds 12",
+      "files": ["User.js", "authController.js"]
+    },
+    {
+      "measure": "Session Management",
+      "description": "tokenExpiresAt in localStorage, 5-min warning",
+      "implementation_details": "Client interceptor throws auth:expired",
+      "files": ["AuthContext.jsx", "authApi.js"]
+    },
+    {
+      "measure": "Blocked Users",
+      "description": "Full-screen BlockedNotice, socket disconnect",
+      "implementation_details": "Axios interceptor catches 403, updates Context to show fixed overlay",
+      "files": ["BlockedNotice.jsx", "authMiddleware.js"]
+    }
+  ],
+  "performance_optimizations": [
+    {
+      "optimization": "Lazy Image Loading",
+      "technique": "loading='lazy' + onLoad shimmer + IntersectionObserver",
+      "benefit": "No eager image loading",
+      "files": ["ImageSlider.jsx", "AuctionCard.jsx"]
+    },
+    {
+      "optimization": "Skeleton UI",
+      "technique": "AuctionCardSkeleton, SkeletonRow animate-pulse",
+      "benefit": "No layout shift",
+      "files": ["AuctionCardSkeleton.jsx"]
+    },
+    {
+      "optimization": "Next Image Preload",
+      "technique": "new Image().src = nextSlide.url on slide change",
+      "benefit": "Instant slide transitions",
+      "files": ["ImageSlider.jsx"]
+    },
+    {
+      "optimization": "MongoDB Indexes",
+      "technique": "15 compound+single indexes across 4 collections",
+      "benefit": "Query optimization",
+      "files": ["User.js", "Auction.js", "Bid.js", "Watchlist.js", "TokenBlacklist.js"]
+    },
+    {
+      "optimization": ".lean() Queries",
+      "technique": "All read-only controllers use .lean()",
+      "benefit": "3-5x faster, less memory",
+      "files": ["auctionController.js", "sellerAuthController.js", "profileController.js"]
+    },
+    {
+      "optimization": "Parallel Queries",
+      "technique": "Promise.all for data + count + summary",
+      "benefit": "Halved DB round trips",
+      "files": ["auctionController.js", "sellerAuthController.js"]
+    },
+    {
+      "optimization": "DB-Level Pagination",
+      "technique": "skip/limit at cursor, hard cap 50",
+      "benefit": "No memory array dumps",
+      "files": ["paginateQuery.js", "auctionController.js", "bidController.js"]
+    },
+    {
+      "optimization": "React.memo",
+      "technique": "AuctionCard, BidHistory, CountdownTimer with custom comparators",
+      "benefit": "Prevents cascade re-renders",
+      "files": ["AuctionCard.jsx", "BidHistory.jsx", "CountdownTimer.jsx"]
+    },
+    {
+      "optimization": "useCallback",
+      "technique": "Event handlers in AuctionList",
+      "benefit": "Stable references to child components",
+      "files": ["AuctionList.jsx"]
+    },
+    {
+      "optimization": "useMemo",
+      "technique": "Filtered/sorted auction arrays",
+      "benefit": "Recompute only on dependency change",
+      "files": ["AuctionList.jsx"]
+    },
+    {
+      "optimization": "Connection Pooling",
+      "technique": "maxPoolSize: 10, minPoolSize: 2",
+      "benefit": "Handle concurrent requests",
+      "files": ["db.js"]
+    },
+    {
+      "optimization": "Text Index Search",
+      "technique": "MongoDB $text instead of $regex",
+      "benefit": "Faster title search at scale",
+      "files": ["Auction.js"]
+    },
+    {
+      "optimization": "Lean Auth Check",
+      "technique": "authMiddleware selects 7 fields only + .lean()",
+      "benefit": "Minimal per-request overhead",
+      "files": ["authMiddleware.js"]
+    }
+  ],
+  "edge_cases": [
+    {
+      "case": "Stale JWT bypass",
+      "problem": "JWT still valid after user block/suspend",
+      "solution": "authMiddleware fresh DB fetch on every request + socket io.use()",
+      "files": ["authMiddleware.js", "socketHandler.js"],
+      "http_code": 403
+    },
+    {
+      "case": "Concurrent bid race condition",
+      "problem": "Two bids placed instantly override each other",
+      "solution": "findOneAndUpdate with $lt + $expr atomic guard. Returns 409 Conflict. UI auto-updates input.",
+      "files": ["bidController.js", "useBid.js"],
+      "http_code": 409
+    },
+    {
+      "case": "Ghost socket connections",
+      "problem": "Memory leak from unclosed sockets",
+      "solution": "userRooms Map tracks all rooms per socket. Comprehensive disconnect cleanup. viewerUpdate on leave. pingTimeout: 20s.",
+      "files": ["socketHandler.js"]
+    },
+    {
+      "case": "Blocked user mid-session",
+      "problem": "User still browsing while blocked",
+      "solution": "authMiddleware rejects all requests. Socket disconnected at handshake. BlockedNotice shown.",
+      "files": ["authMiddleware.js", "socket.js", "BlockedNotice.jsx"],
+      "http_code": 403
+    },
+    {
+      "case": "Seller suspended after active socket",
+      "problem": "Can still act in room",
+      "solution": "socket io.use() checks isBlocked on connect. placeBid re-validates user from DB.",
+      "files": ["socketHandler.js"]
+    },
+    {
+      "case": "Token reuse after logout",
+      "problem": "Stolen token still works",
+      "solution": "TokenBlacklist with SHA-256 hash + TTL index. Checked in both HTTP + socket auth.",
+      "files": ["TokenBlacklist.js", "authMiddleware.js"],
+      "http_code": 401
+    },
+    {
+      "case": "Session expiry mid-use",
+      "problem": "JWT expires while typing form",
+      "solution": "tokenExpiresAt checked before every request. 5-min warning. auth:expired auto-logout.",
+      "files": ["AuthContext.jsx", "authApi.js"],
+      "http_code": 401
+    },
+    {
+      "case": "File upload abuse",
+      "problem": "Malicious payload via extension spoofing",
+      "solution": "Multer: 5MB limit, 5 files max, mimetype + extension check, filename sanitization.",
+      "files": ["multer.js"],
+      "http_code": 400
+    },
+    {
+      "case": "Bid input conflict",
+      "problem": "User bid immediately outdated by other bid",
+      "solution": "409 response auto-refetches auction, updates input minimum, shows friendly toast.",
+      "files": ["useBid.js", "AuctionRoom.jsx"],
+      "http_code": 409
+    }
+  ],
+  "known_limitations": [
+    {
+      "limitation": "No horizontal Socket.io scaling",
+      "reason": "No Redis adapter configured",
+      "workaround": "Single-server deployment only",
+      "severity": "medium",
+      "fix": "Add socket.io-redis adapter"
+    },
+    {
+      "limitation": "JWT in localStorage",
+      "reason": "XSS risk",
+      "mitigation": "Input sanitization + security headers + blacklist",
+      "severity": "low"
+    },
+    {
+      "limitation": "No email notifications",
+      "severity": "low",
+      "fix": "Add nodemailer or SendGrid"
+    },
+    {
+      "limitation": "No payment integration",
+      "severity": "medium",
+      "fix": "Add Stripe or Razorpay checkout"
+    }
+  ],
+  "seed_data": {
+    "command": "npm run seed",
+    "warning": "Clears ALL existing data + uploads to Cloudinary",
+    "accounts": [
+      { "role": "admin", "email": "admin@auction.com", "password": "admin123", "sellerStatus": null },
+      { "role": "seller", "email": "seller@auction.com", "password": "seller123", "sellerStatus": "authorized" },
+      { "role": "bidder", "email": "bidder@auction.com", "password": "bidder123", "sellerStatus": null },
+      { "role": "bidder", "email": "sourabh@gmail.com", "password": "sourabh123", "sellerStatus": null }
+    ],
+    "auctions": {
+      "total": 15,
+      "active": 10,
+      "other": 5,
+      "images": "3 sample product images uploaded to Cloudinary"
+    }
+  },
+  "scripts": {
+    "root": {
+      "dev": "concurrently backend + frontend",
+      "server": "nodemon backend/server.js",
+      "client": "cd frontend && vite",
+      "build": "cd frontend && vite build",
+      "seed": "node backend/seed.js",
+      "install:all": "npm i && cd backend && npm i && cd ../frontend && npm i"
+    }
+  },
+  "deployment": {
+    "planned": ["Nginx", "PM2", "Hostinger VPS"],
+    "notes": [
+      "Use PM2 cluster mode for Node.js process management",
+      "Nginx as reverse proxy on port 80/443",
+      "Add Redis adapter for Socket.io if scaling needed",
+      "Set NODE_ENV=production in server environment",
+      "Use MongoDB Atlas for managed database in production"
+    ]
+  }
+}

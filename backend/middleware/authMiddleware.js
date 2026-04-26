@@ -1,6 +1,13 @@
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { ApiError } from "../utils/ApiError.js";
 import User from "../models/User.js";
+import TokenBlacklist from "../models/TokenBlacklist.js";
+
+// Hash function used to check blacklist without storing raw tokens
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 /**
  * SECURITY NOTE: This middleware performs a fresh DB lookup on EVERY
@@ -30,19 +37,39 @@ export const protect = async (req, res, next) => {
       return next(new ApiError(401, "Not authorized, no token provided"));
     }
 
-    // ── Verify JWT signature / expiry ──────────────────────
+    // ── Verify JWT signature / expiry / claims ─────────────
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, process.env.JWT_SECRET, {
+        issuer: "auction-system",
+        audience: "auction-client",
+      });
     } catch (jwtErr) {
       if (jwtErr.name === "TokenExpiredError") {
         return next(new ApiError(401, "Session expired. Please login again."));
+      }
+      if (jwtErr.name === "NotBeforeError") {
+        return next(new ApiError(401, "Token not yet valid."));
       }
       if (jwtErr.name === "JsonWebTokenError") {
         return next(new ApiError(401, "Invalid token. Please login again."));
       }
       // Unexpected JWT error — pass to global error handler
       return next(jwtErr);
+    }
+
+    // ── Check token blacklist (logged out tokens) ──────────
+    const tokenHash = hashToken(token);
+    const isBlacklisted = await TokenBlacklist.findOne(
+      { tokenHash },
+      "_id",
+      { lean: true },
+    );
+
+    if (isBlacklisted) {
+      return next(
+        new ApiError(401, "Token has been invalidated. Please login again."),
+      );
     }
 
     // ── Fresh DB lookup — the core of stale JWT prevention ─
@@ -57,6 +84,14 @@ export const protect = async (req, res, next) => {
 
     // Case b: User was blocked after token was issued
     if (user.isBlocked) {
+      // Log blocked access attempt for admin audit
+      console.warn(`[SECURITY] Blocked user attempted access:
+    userId: ${user._id}
+    email:  ${user.email}
+    route:  ${req.method} ${req.originalUrl}
+    ip:     ${req.ip}
+    time:   ${new Date().toISOString()}
+  `);
       return next(
         new ApiError(
           403,
