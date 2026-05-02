@@ -10,6 +10,8 @@ import User from "./models/User.js";
 import Auction from "./models/Auction.js";
 import Bid from "./models/Bid.js";
 import Watchlist from "./models/Watchlist.js";
+import Notification from "./models/Notification.js";
+import NotificationPreferences from "./models/NotificationPreferences.js";
 
 // Configure Cloudinary
 cloudinary.config({
@@ -51,6 +53,8 @@ const seed = async () => {
       Auction.deleteMany({}),
       Bid.deleteMany({}),
       Watchlist.deleteMany({}),
+      Notification.deleteMany({}),
+      NotificationPreferences.deleteMany({}),
     ]);
     console.log("🗑  Cleared existing data");
 

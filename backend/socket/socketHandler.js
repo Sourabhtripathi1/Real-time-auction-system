@@ -104,6 +104,12 @@ const socketHandler = (io) => {
       `[Socket] Connected: ${socket.id} | User: ${socket.user?._id || "unknown"}`,
     );
 
+    // ── Join user's personal room for notifications ──────────
+    const userId = socket.user?._id?.toString();
+    if (userId) {
+      socket.join(`user_${userId}`);
+    }
+
     // ── Join Auction Room ────────────────────────────────────
     socket.on("joinAuction", async ({ auctionId }) => {
       if (!auctionId) return;

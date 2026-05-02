@@ -7,6 +7,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { deleteFromCloudinary } from "../config/cloudinary.js";
 import { validateUploadedFiles } from "../config/multer.js";
 import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
+import { notifyAuctionStatusChange } from "../services/notificationService.js";
 
 // ── Allowed sort fields (whitelist to prevent injection) ───
 const AUCTION_SORT_FIELDS = new Set([
@@ -416,6 +417,17 @@ export const approveAuction = async (req, res, next) => {
     }
 
     await auction.save();
+
+    // ── Notify seller about auction approval/rejection ──────
+    notifyAuctionStatusChange({
+      sellerId: auction.seller,
+      auctionId: auction._id,
+      auctionTitle: auction.title,
+      status: action === "approve" ? "approved" : "rejected",
+      reason: action === "reject" ? req.body.rejectionReason?.trim() : null,
+    }).catch((err) =>
+      console.error("[Auction] Status notification failed:", err.message),
+    );
 
     res
       .status(200)

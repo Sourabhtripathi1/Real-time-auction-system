@@ -3,6 +3,7 @@ import Auction from "../models/Auction.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
+import { notifySellerStatusChange } from "../services/notificationService.js";
 
 const ALLOWED_SORT_FIELDS = new Set(["createdAt", "sellerAppliedAt", "name"]);
 
@@ -305,6 +306,17 @@ export const updateSellerStatus = async (req, res, next) => {
       suspend: "suspended",
       revoke: "revoked",
     }[action];
+
+    // ── Notify seller about status change ────────────────────
+    if (["authorize", "reject", "suspend"].includes(action)) {
+      notifySellerStatusChange({
+        sellerId: seller._id,
+        status: actionVerb,
+        reason: reason?.trim() || null,
+      }).catch((err) =>
+        console.error("[Seller] Status notification failed:", err.message),
+      );
+    }
 
     res
       .status(200)

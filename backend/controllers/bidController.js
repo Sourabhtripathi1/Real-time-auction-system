@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
+import { notifyOutbid } from "../services/notificationService.js";
 
 const ANTI_SNIPE_THRESHOLD_MS = 10_000;
 const ANTI_SNIPE_EXTENSION_MS = 10_000;
@@ -81,6 +82,7 @@ export const placeBid = async (req, res, next) => {
     //   currentHighestBid will have changed → this returns null → 409.
     // - The $expr check also enforces minIncrement atomically.
     const previousBid = auction.currentHighestBid;
+    const previousHighestBidderId = auction.highestBidder;
 
     const updatedAuction = await Auction.findOneAndUpdate(
       {
@@ -165,6 +167,22 @@ export const placeBid = async (req, res, next) => {
       highestBidder: { id: req.user._id, name: req.user.name },
       timestamp: bid.timestamp,
     });
+
+    // ── Notify previous highest bidder they were outbid ─────
+    if (
+      previousHighestBidderId &&
+      previousHighestBidderId.toString() !== req.user._id.toString()
+    ) {
+      notifyOutbid({
+        bidderId: previousHighestBidderId,
+        auctionId: auction._id,
+        auctionTitle: auction.title,
+        newBid: bidAmount,
+        previousBid,
+      }).catch((err) =>
+        console.error("[Bid] Outbid notification failed:", err.message),
+      );
+    }
 
     // ── Response ───────────────────────────────────────────
     res.status(201).json(

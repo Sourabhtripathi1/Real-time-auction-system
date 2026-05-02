@@ -9,6 +9,9 @@ import connectDB from "./config/db.js";
 import { verifyIndexes } from "./config/dbIndexes.js";
 import { errorHandler } from "./middleware/errorMiddleware.js";
 import Auction from "./models/Auction.js";
+import Bid from "./models/Bid.js";
+import Watchlist from "./models/Watchlist.js";
+import User from "./models/User.js";
 import socketHandler from "./socket/socketHandler.js";
 import authRoutes from "./routes/authRoutes.js";
 import auctionRoutes from "./routes/auctionRoutes.js";
@@ -16,6 +19,11 @@ import bidRoutes from "./routes/bidRoutes.js";
 import watchlistRoutes from "./routes/watchlistRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import {
+  notifyAuctionStart,
+  notifyAuctionEnd,
+} from "./services/notificationService.js";
 import {
   apiRateLimiter,
   authRateLimiter,
@@ -56,6 +64,7 @@ const io = new Server(httpServer, {
 });
 
 app.set("io", io);
+global.io = io; // Expose io to notificationService
 socketHandler(io);
 
 // ── Security Headers ───────────────────────────────────────
@@ -101,6 +110,7 @@ app.use("/api/bids", bidRoutes);
 app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/seller", sellerRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Health check
 app.get("/health", (_req, res) =>
@@ -116,6 +126,12 @@ const runAuctionScheduler = async () => {
 
     // Run both activation and ending queries IN PARALLEL
     // Each uses its own compound index: { status, startTime } and { status, endTime }
+    // Find auctions that need to activate (for notifications)
+    const auctionsToActivate = await Auction.find(
+      { status: "approved", startTime: { $lte: now } },
+      "_id title",
+    ).lean();
+
     const [activated, auctionsToEnd] = await Promise.all([
       // Activate approved auctions whose startTime has arrived
       // Uses compound index { status: 1, startTime: 1 }
@@ -137,6 +153,27 @@ const runAuctionScheduler = async () => {
       console.log(
         `[Scheduler] Activated ${activated.modifiedCount} auction(s)`,
       );
+
+      // ── Notify watchlist users about auction start ──────────
+      for (const auction of auctionsToActivate) {
+        try {
+          const watchlistUserIds = await Watchlist.distinct("user", {
+            auction: auction._id,
+          });
+          if (watchlistUserIds.length > 0) {
+            await notifyAuctionStart({
+              auctionId: auction._id,
+              auctionTitle: auction.title,
+              watchlistUserIds,
+            });
+          }
+        } catch (notifErr) {
+          console.error(
+            `[Scheduler] Notification error for auction ${auction._id}:`,
+            notifErr.message,
+          );
+        }
+      }
     }
 
     if (auctionsToEnd.length > 0) {
@@ -146,15 +183,45 @@ const runAuctionScheduler = async () => {
         { $set: { status: "ended" } },
       );
 
-      // Emit auctionEnded for each auction in the ended batch
+      // Emit auctionEnded + send notifications for each ended auction
       for (const auction of auctionsToEnd) {
+        // Resolve winner name for notification message
+        let winnerName = null;
+        if (auction.highestBidder) {
+          const winner = await User.findById(auction.highestBidder)
+            .select("name")
+            .lean();
+          winnerName = winner?.name || null;
+        }
+
         io.to(`auction_${auction._id}`).emit("auctionEnded", {
           auctionId: auction._id,
           winnerId: auction.highestBidder || null,
-          winnerName: null, // lean() doesn't populate; name resolved client-side
+          winnerName,
           finalBid: auction.currentHighestBid,
         });
         console.log(`[Scheduler] Ended auction: ${auction.title}`);
+
+        // ── Notify winner + all bidders about auction end ─────
+        try {
+          const allBidderIds = await Bid.distinct("bidder", {
+            auction: auction._id,
+          });
+
+          await notifyAuctionEnd({
+            auctionId: auction._id,
+            auctionTitle: auction.title,
+            winnerId: auction.highestBidder,
+            winnerName,
+            finalBid: auction.currentHighestBid,
+            allBidderIds,
+          });
+        } catch (notifErr) {
+          console.error(
+            `[Scheduler] Notification error for ended auction ${auction._id}:`,
+            notifErr.message,
+          );
+        }
       }
     }
   } catch (err) {

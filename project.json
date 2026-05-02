@@ -1,7 +1,7 @@
 {
   "meta": {
     "file": "project.json",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Complete machine-readable project context for the MERN Real-Time Auction System.",
     "project_root": "Real-time-auction-system",
     "repository": "https://github.com/Sourabhtripathi1/Real-time-auction-system"
@@ -234,6 +234,41 @@
           { "fields": { "tokenHash": 1 }, "unique": true, "purpose": "fast blacklist lookup" },
           { "fields": { "expiresAt": 1 }, "expireAfterSeconds": 0, "purpose": "auto-delete expired tokens" }
         ]
+      },
+      {
+        "name": "notifications",
+        "model_file": "backend/models/Notification.js",
+        "fields": [
+          { "name": "_id", "type": "ObjectId", "required": true, "indexed": true, "notes": "" },
+          { "name": "recipient", "type": "ObjectId", "required": true, "indexed": true, "notes": "ref: User" },
+          { "name": "type", "type": "Enum", "required": true, "indexed": false, "notes": "outbid/auction_start/auction_end/watchlist_alert/auction_won/auction_lost/seller_approved/seller_rejected/auction_approved/auction_rejected" },
+          { "name": "title", "type": "String", "required": true, "indexed": false, "notes": "max 100 chars" },
+          { "name": "message", "type": "String", "required": true, "indexed": false, "notes": "max 500 chars" },
+          { "name": "data", "type": "Object", "required": false, "indexed": false, "notes": "{ auctionId, auctionTitle, bidAmount, previousBid, winnerId, winnerName, status, reason }" },
+          { "name": "isRead", "type": "Boolean", "required": true, "indexed": true, "notes": "Default: false" },
+          { "name": "createdAt", "type": "Date", "required": true, "indexed": true, "notes": "30-day TTL auto-delete" }
+        ],
+        "indexes": [
+          { "fields": { "recipient": 1, "isRead": 1, "createdAt": -1 }, "purpose": "getMyNotifications query" },
+          { "fields": { "recipient": 1, "createdAt": -1 }, "purpose": "user notifications sorted" },
+          { "fields": { "createdAt": 1 }, "expireAfterSeconds": 2592000, "purpose": "TTL auto-delete after 30 days" }
+        ]
+      },
+      {
+        "name": "notificationpreferences",
+        "model_file": "backend/models/NotificationPreferences.js",
+        "fields": [
+          { "name": "_id", "type": "ObjectId", "required": true, "indexed": true, "notes": "" },
+          { "name": "user", "type": "ObjectId", "required": true, "indexed": true, "notes": "ref: User, unique" },
+          { "name": "emailNotifications", "type": "Boolean", "required": false, "indexed": false, "notes": "Default: false (future)" },
+          { "name": "pushNotifications", "type": "Boolean", "required": false, "indexed": false, "notes": "Default: true" },
+          { "name": "preferences", "type": "Object", "required": false, "indexed": false, "notes": "{ outbid, auction_start, auction_end, watchlist_alert, auction_won, auction_lost, seller_status, auction_status } all Boolean default true" },
+          { "name": "createdAt", "type": "Date", "required": true, "indexed": false, "notes": "Auto" },
+          { "name": "updatedAt", "type": "Date", "required": true, "indexed": false, "notes": "Auto" }
+        ],
+        "indexes": [
+          { "fields": { "user": 1 }, "unique": true, "purpose": "one preferences doc per user" }
+        ]
       }
     ]
   },
@@ -266,7 +301,14 @@
     { "method": "GET", "path": "/api/seller/my-status", "auth": true, "roles": ["seller"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('seller')"], "description": "My seller status", "response_shape": "{ sellerStatus, sellerStatusReason }" },
     { "method": "GET", "path": "/api/seller/all", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "All sellers (search/filter/paginate)", "response_shape": "{ sellers, pagination }" },
     { "method": "GET", "path": "/api/seller/:sellerId", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "Seller detail + stats", "response_shape": "{ seller, stats }" },
-    { "method": "PATCH", "path": "/api/seller/:sellerId/status", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "Authorize/reject/suspend/revoke", "body": ["status", "reason"], "response_shape": "{ seller }" }
+    { "method": "PATCH", "path": "/api/seller/:sellerId/status", "auth": true, "roles": ["admin"], "rate_limit": "100/min", "middleware_chain": ["protect", "authorizeRoles('admin')"], "description": "Authorize/reject/suspend/revoke", "body": ["status", "reason"], "response_shape": "{ seller }" },
+    { "method": "GET", "path": "/api/notifications/my", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "My notifications (paginated, filterable by isRead/type)", "response_shape": "{ notifications, pagination, unreadCount }" },
+    { "method": "GET", "path": "/api/notifications/unread-count", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Unread notification count", "response_shape": "{ count }" },
+    { "method": "PATCH", "path": "/api/notifications/:id/read", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Mark single notification as read", "response_shape": "{ notification }" },
+    { "method": "PATCH", "path": "/api/notifications/read-all", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Mark all notifications as read", "response_shape": "{ modifiedCount }" },
+    { "method": "DELETE", "path": "/api/notifications/:id", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Delete a notification", "response_shape": "{ message }" },
+    { "method": "GET", "path": "/api/notifications/preferences", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Get notification preferences", "response_shape": "{ preferences }" },
+    { "method": "PATCH", "path": "/api/notifications/preferences", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Update notification preferences", "body": ["pushNotifications", "preferences"], "response_shape": "{ preferences }" }
   ],
   "realtime_system": {
     "library": "Socket.io 4",
@@ -297,8 +339,28 @@
       { "name": "auctionEnded", "direction": "Server -> Room", "payload": "{ auctionId, winnerId, winnerName, finalBid }" },
       { "name": "viewerUpdate", "direction": "Server -> Room", "payload": "{ auctionId, viewers }" },
       { "name": "userJoined", "direction": "Server -> Room", "payload": "{ userId, totalViewers }" },
-      { "name": "bidError", "direction": "Server -> Client", "payload": "{ code, message }" }
+      { "name": "bidError", "direction": "Server -> Client", "payload": "{ code, message }" },
+      { "name": "newNotification", "direction": "Server -> User", "payload": "{ id, type, title, message, data, isRead, createdAt }" }
     ]
+  },
+  "notification_system": {
+    "types": ["outbid", "auction_start", "auction_end", "watchlist_alert", "auction_won", "auction_lost", "seller_approved", "seller_rejected", "auction_approved", "auction_rejected"],
+    "delivery": ["In-app (persisted MongoDB)", "Socket.IO real-time push"],
+    "user_room_pattern": "user_${userId}",
+    "ttl": "30 days (auto-deleted via MongoDB TTL index)",
+    "service_file": "backend/services/notificationService.js",
+    "integration_points": [
+      { "trigger": "Bid placed (outbids someone)", "function": "notifyOutbid", "called_from": "bidController.js" },
+      { "trigger": "Auction activates (scheduler)", "function": "notifyAuctionStart", "called_from": "server.js scheduler" },
+      { "trigger": "Auction ends (scheduler)", "function": "notifyAuctionEnd", "called_from": "server.js scheduler" },
+      { "trigger": "Admin approves/rejects auction", "function": "notifyAuctionStatusChange", "called_from": "auctionController.js" },
+      { "trigger": "Admin changes seller status", "function": "notifySellerStatusChange", "called_from": "sellerAuthController.js" }
+    ],
+    "preferences": {
+      "auto_created": true,
+      "defaults_all_enabled": true,
+      "toggleable_types": ["outbid", "auction_start", "auction_end", "watchlist_alert", "auction_won", "auction_lost", "seller_status", "auction_status"]
+    }
   },
   "auction_statuses": {
     "values": ["inactive", "pending", "approved", "active", "ended", "rejected"],
@@ -616,16 +678,22 @@
       "limitation": "No payment integration",
       "severity": "medium",
       "fix": "Add Stripe or Razorpay checkout"
+    },
+    {
+      "limitation": "No email notification delivery",
+      "reason": "emailNotifications preference exists but no transport configured",
+      "severity": "low",
+      "fix": "Add Nodemailer or SendGrid transport to notificationService.js"
     }
   ],
   "seed_data": {
     "command": "npm run seed",
     "warning": "Clears ALL existing data + uploads to Cloudinary",
     "accounts": [
-      { "role": "admin", "email": "admin@auction.com", "password": "admin123", "sellerStatus": null },
-      { "role": "seller", "email": "seller@auction.com", "password": "seller123", "sellerStatus": "authorized" },
-      { "role": "bidder", "email": "bidder@auction.com", "password": "bidder123", "sellerStatus": null },
-      { "role": "bidder", "email": "sourabh@gmail.com", "password": "sourabh123", "sellerStatus": null }
+      { "role": "admin", "email": "admin@auction.com", "password": "Admin123", "sellerStatus": null },
+      { "role": "seller", "email": "seller@auction.com", "password": "Seller123", "sellerStatus": "authorized" },
+      { "role": "bidder", "email": "bidder@auction.com", "password": "Bidder123", "sellerStatus": null },
+      { "role": "bidder", "email": "sourabh@gmail.com", "password": "Sourabh123", "sellerStatus": null }
     ],
     "auctions": {
       "total": 15,

@@ -95,6 +95,18 @@
   - pingTimeout: 20s / pingInterval: 10s
   - disconnect handler cleanup
 
+### 🔔 Smart Notification System
+- **10 notification types**: outbid, auction_start, auction_end, watchlist_alert, auction_won, auction_lost, seller_approved, seller_rejected, auction_approved, auction_rejected
+- **Real-time push** via Socket.IO personal rooms (`user_${id}`)
+- **Persisted in MongoDB** with 30-day TTL auto-cleanup
+- **Per-user preferences** — toggle individual notification types on/off
+- **Centralized service** — all notifications flow through `notificationService.js`
+- Outbid alerts when someone places a higher bid
+- Auction start alerts for watchlist users
+- Win/loss notifications when auctions end
+- Seller status change alerts (authorized/rejected/suspended)
+- Auction approval/rejection alerts for sellers
+
 ### 🎨 UI/UX Features
 - Interactive auction card grid (3-col desktop, 2-col tablet, 1-col mobile)
 - Custom ImageSlider (no external library): arrows, dots, thumbnails, autoplay, touch/swipe, keyboard navigation, image counter badge, skeleton shimmer
@@ -203,8 +215,18 @@ Real-time-auction-system/
 │   │   ├── watchlistController.js ← Add, get, remove
 │   │   ├── profileController.js   ← Get profile+stats, update, 
 │   │   │                            changePassword, removeImage
-│   │   └── sellerAuthController.js← Apply, getMyStatus, getAllSellers,
-│   │                                getSellerById, updateSellerStatus
+│   │   ├── sellerAuthController.js← Apply, getMyStatus, getAllSellers,
+│   │   │                            getSellerById, updateSellerStatus
+│   │   └── notificationController.js ← getMyNotifications, markAsRead,
+│   │                                   markAllAsRead, deleteNotification,
+│   │                                   getUnreadCount, preferences CRUD
+│   │
+│   ├── services/
+│   │   └── notificationService.js ← Centralized notification creation,
+│   │                                preference checking, Socket.IO push,
+│   │                                helpers: notifyOutbid, notifyAuctionStart,
+│   │                                notifyAuctionEnd, notifySellerStatusChange,
+│   │                                notifyAuctionStatusChange
 │   │
 │   ├── middleware/
 │   │   ├── authMiddleware.js      ← JWT verify + blacklist check 
@@ -225,7 +247,10 @@ Real-time-auction-system/
 │   │   │                            rejectionReason, 8 compound indexes
 │   │   ├── Bid.js                 ← 3 compound indexes
 │   │   ├── Watchlist.js           ← unique compound index {user, auction}
-│   │   └── TokenBlacklist.js      ← tokenHash (SHA-256), TTL index (auto-expiry)
+│   │   ├── TokenBlacklist.js      ← tokenHash (SHA-256), TTL index (auto-expiry)
+│   │   ├── Notification.js        ← 10 types, recipient indexed, isRead,
+│   │   │                            data payload, 30-day TTL auto-delete
+│   │   └── NotificationPreferences.js ← per-user toggles, push/email flags
 │   │
 │   ├── routes/
 │   │   ├── authRoutes.js          ← register, login, logout, me
@@ -235,13 +260,15 @@ Real-time-auction-system/
 │   │   ├── watchlistRoutes.js     ← add, my, :auctionId (bidder only)
 │   │   ├── profileRoutes.js       ← me, update (uploadProfileImage), 
 │   │   │                            change-password, remove-image
-│   │   └── sellerRoutes.js        ← apply, my-status, all, :sellerId,
-│   │                                :sellerId/status
+│   │   ├── sellerRoutes.js        ← apply, my-status, all, :sellerId,
+│   │   │                            :sellerId/status
+│   │   └── notificationRoutes.js  ← my, unread-count, :id/read,
+│   │                                read-all, :id, preferences
 │   │
 │   ├── socket/
 │   │   └── socketHandler.js       ← io.use() JWT+blacklist+isBlocked auth,
 │   │                                joinAuction, leaveAuction,
-│   │                                placeBid (rate-limited, re-validated),
+│   │                                user_${id} personal room join,
 │   │                                disconnect cleanup, userRooms Map,
 │   │                                socketBidTracker, viewerUpdate emit
 │   │
@@ -483,6 +510,38 @@ Indexes:
 | expiresAt | Date | TTL index (auto-deleted by MongoDB) |
 | createdAt | Date | |
 
+### Notifications Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | |
+| recipient | ObjectId | ref: User, indexed |
+| type | Enum | outbid/auction_start/auction_end/watchlist_alert/auction_won/auction_lost/seller_approved/seller_rejected/auction_approved/auction_rejected |
+| title | String | max 100 chars |
+| message | String | max 500 chars |
+| data | Object | { auctionId, auctionTitle, bidAmount, previousBid, winnerId, winnerName, status, reason } |
+| isRead | Boolean | Default: false, indexed |
+| createdAt | Date | Indexed, 30-day TTL auto-delete |
+
+Indexes:
+- `{ recipient: 1, isRead: 1, createdAt: -1 }` (primary query)
+- `{ recipient: 1, createdAt: -1 }`
+- `{ createdAt: 1 }` TTL (expireAfterSeconds: 2592000)
+
+### NotificationPreferences Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | |
+| user | ObjectId | ref: User, unique |
+| emailNotifications | Boolean | Default: false (future) |
+| pushNotifications | Boolean | Default: true |
+| preferences | Object | { outbid, auction_start, auction_end, watchlist_alert, auction_won, auction_lost, seller_status, auction_status } — all Boolean, default true |
+| createdAt | Date | |
+| updatedAt | Date | |
+
+Index: `{ user: 1 }` (unique)
+
 ---
 
 ## 📡 API Reference
@@ -518,6 +577,13 @@ Indexes:
 | GET | `/api/seller/all` | Yes | Admin | 100/min | All sellers (search/filter/paginate) |
 | GET | `/api/seller/:sellerId` | Yes | Admin | 100/min | Seller detail + stats |
 | PATCH | `/api/seller/:sellerId/status` | Yes | Admin | 100/min | Authorize/reject/suspend/revoke |
+| GET | `/api/notifications/my` | Yes | Any | 100/min | My notifications (paginated, filterable) |
+| GET | `/api/notifications/unread-count` | Yes | Any | 100/min | Unread notification count |
+| PATCH | `/api/notifications/:id/read` | Yes | Any | 100/min | Mark single notification as read |
+| PATCH | `/api/notifications/read-all` | Yes | Any | 100/min | Mark all notifications as read |
+| DELETE | `/api/notifications/:id` | Yes | Any | 100/min | Delete a notification |
+| GET | `/api/notifications/preferences` | Yes | Any | 100/min | Get notification preferences |
+| PATCH | `/api/notifications/preferences` | Yes | Any | 100/min | Update notification preferences |
 
 *Admin and Seller are restricted from `/api/auctions/live` at backend
 †Requires `sellerStatus: "authorized"` via `requireAuthorizedSeller` middleware
@@ -536,6 +602,7 @@ Indexes:
 | viewerUpdate | Server → Room | `{ auctionId, viewers }` | Viewer count changed |
 | userJoined | Server → Room | `{ userId, totalViewers }` | User entered room |
 | bidError | Server → Client | `{ code, message }` | Bid failed (RATE_LIMITED, AUTH_BLOCKED) |
+| newNotification | Server → User | `{ id, type, title, message, data, isRead, createdAt }` | Push notification to user's personal room |
 
 Socket Connection Auth:
 - Token via `socket.handshake.auth.token`
