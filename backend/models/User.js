@@ -177,26 +177,25 @@ userSchema.index({ role: 1 });
 userSchema.index({ _id: 1, isBlocked: 1, sellerStatus: 1 });
 
 // ── Pre-save hook: hash password ───────────────────────────
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
   // 1. Validate password length BEFORE hashing:
   if (this.password.length > 72) {
     // bcrypt silently truncates at 72 bytes.
     // Attacker with 73+ char pw and 72 char pw 
     // would both "match". Prevent this:
-    return next(new Error("Password cannot exceed 72 characters."));
+    throw new Error("Password cannot exceed 72 characters.");
   }
 
   if (this.password.length < 8) {
-    return next(new Error("Password must be at least 8 characters."));
+    throw new Error("Password must be at least 8 characters.");
   }
 
   // 2. Use cost factor 12 (production standard):
   const SALT_ROUNDS = 12;
   const salt = await bcrypt.genSalt(SALT_ROUNDS);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // ── Instance method: compare password ─────────────────────
