@@ -8,6 +8,12 @@ import { deleteFromCloudinary } from "../config/cloudinary.js";
 import { validateUploadedFiles } from "../config/multer.js";
 import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
 import { notifyAuctionStatusChange } from "../services/notificationService.js";
+import { activeBidders } from "../socket/socketHandler.js";
+import {
+  logAuctionCreated,
+  logAuctionApproved,
+  logAuctionRejected,
+} from "../services/activityService.js";
 
 // ── Allowed sort fields (whitelist to prevent injection) ───
 const AUCTION_SORT_FIELDS = new Set([
@@ -159,6 +165,15 @@ export const createAuction = async (req, res, next) => {
           "Auction created as draft. Submit for verification when ready.",
         ),
       );
+
+    // Log auction created activity (fire-and-forget, after response)
+    logAuctionCreated({
+      userId: req.user._id,
+      auctionId: auction._id,
+      auctionTitle: auction.title,
+    }).catch((e) =>
+      console.error("[Auction] Activity log (create) failed:", e.message),
+    );
   } catch (error) {
     next(error);
   }
@@ -362,10 +377,24 @@ export const getAuctionById = async (req, res, next) => {
 
     if (!auction) throw new ApiError(404, "Auction not found");
 
+    // Calculate time left
+    const now = Date.now();
+    const timeLeft = new Date(auction.endTime) - now;
+    const isEndingSoon = timeLeft > 0 && timeLeft <= 5 * 60 * 1000;
+
+    // Get active bidder count from socket handler
+    const activeBidderMap = activeBidders.get(auction._id.toString());
+    const activeBidderCount = activeBidderMap ? activeBidderMap.size : 0;
+
     res
       .status(200)
       .json(
-        new ApiResponse(200, auction, "Auction details retrieved successfully"),
+        new ApiResponse(200, {
+          ...auction,
+          timeLeft,
+          isEndingSoon,
+          activeBidderCount
+        }, "Auction details retrieved successfully"),
       );
   } catch (error) {
     next(error);
@@ -428,6 +457,28 @@ export const approveAuction = async (req, res, next) => {
     }).catch((err) =>
       console.error("[Auction] Status notification failed:", err.message),
     );
+
+    // ── Log activity (fire-and-forget) ────────────────────────
+    if (action === "approve") {
+      logAuctionApproved({
+        adminId: req.user._id,
+        auctionId: auction._id,
+        auctionTitle: auction.title,
+        sellerId: auction.seller,
+      }).catch((e) =>
+        console.error("[Auction] Activity log (approve) failed:", e.message),
+      );
+    } else {
+      logAuctionRejected({
+        adminId: req.user._id,
+        auctionId: auction._id,
+        auctionTitle: auction.title,
+        sellerId: auction.seller,
+        reason: req.body.rejectionReason?.trim(),
+      }).catch((e) =>
+        console.error("[Auction] Activity log (reject) failed:", e.message),
+      );
+    }
 
     res
       .status(200)

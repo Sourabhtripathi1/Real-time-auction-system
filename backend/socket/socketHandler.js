@@ -2,6 +2,24 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import User from "../models/User.js";
 import TokenBlacklist from "../models/TokenBlacklist.js";
+import Auction from "../models/Auction.js";
+import { logUserJoinedAuction } from "../services/activityService.js";
+
+export const activeBidders = new Map();
+
+setInterval(() => {
+  const now = Date.now();
+  activeBidders.forEach((bidders, auctionId) => {
+    bidders.forEach((data, userId) => {
+      if (now - data.lastBidTime > 60000) {
+        bidders.delete(userId);
+      }
+    });
+    if (bidders.size === 0) {
+      activeBidders.delete(auctionId);
+    }
+  });
+}, 10000);
 
 // ── Module-level Maps for connection tracking ──────────────
 // Maps socket.id → Set of auctionIds the socket has joined
@@ -15,17 +33,38 @@ const userConnectionCount = new Map();
 // Used on every sensitive socket event to prevent stale sessions
 async function getValidUser(userId) {
   return User.findById(userId)
-    .select("_id isBlocked role sellerStatus")
+    .select("_id name profileImage role isBlocked sellerStatus")
     .lean();
 }
 
 // ── Helper: broadcast updated viewer count to a room ───────
+function getViewerList(io, auctionId) {
+  const room = io.sockets.adapter.rooms.get(`auction_${auctionId}`);
+  const viewers = [];
+  if (room) {
+    for (const socketId of room) {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket?.user) {
+        // Prevent duplicates if user has multiple tabs open
+        if (!viewers.some((v) => v.id.toString() === socket.user._id.toString())) {
+          viewers.push({
+            id: socket.user._id,
+            name: socket.user.name,
+            profileImage: socket.user.profileImage,
+          });
+        }
+      }
+    }
+  }
+  return viewers;
+}
+
 function broadcastViewerCount(io, auctionId) {
-  const roomSize =
-    io.sockets.adapter.rooms.get(`auction_${auctionId}`)?.size || 0;
+  const viewers = getViewerList(io, auctionId);
   io.to(`auction_${auctionId}`).emit("viewerUpdate", {
     auctionId,
-    viewers: roomSize,
+    viewers,
+    count: viewers.length,
   });
 }
 
@@ -67,7 +106,7 @@ const socketHandler = (io) => {
 
       // Fresh DB check — blocks revoked/suspended users at connection time
       const user = await User.findById(decoded.id)
-        .select("_id name role isBlocked sellerStatus")
+        .select("_id name profileImage role isBlocked sellerStatus")
         .lean();
 
       if (!user) {
@@ -110,6 +149,16 @@ const socketHandler = (io) => {
       socket.join(`user_${userId}`);
     }
 
+    // ── Join / Leave Global Activity Feed ────────────────────
+    socket.on("joinGlobalFeed", () => {
+      socket.join("global_activity");
+      console.log(`[Socket] User ${socket.user?._id} joined global_activity feed`);
+    });
+
+    socket.on("leaveGlobalFeed", () => {
+      socket.leave("global_activity");
+    });
+
     // ── Join Auction Room ────────────────────────────────────
     socket.on("joinAuction", async ({ auctionId }) => {
       if (!auctionId) return;
@@ -134,8 +183,32 @@ const socketHandler = (io) => {
         `[Socket] ${socket.id} joined auction_${auctionId}`,
       );
 
+      const viewers = getViewerList(io, auctionId);
+      socket.emit("viewerList", {
+        auctionId,
+        viewers,
+        count: viewers.length,
+      });
+
       // Broadcast updated viewer count to all room members
       broadcastViewerCount(io, auctionId);
+
+      // Log user joined auction activity (fire-and-forget)
+      Auction.findById(auctionId)
+        .select("title")
+        .lean()
+        .then((auction) => {
+          if (auction) {
+            logUserJoinedAuction({
+              userId: socket.user._id,
+              auctionId,
+              auctionTitle: auction.title,
+            }).catch((e) =>
+              console.error("[Socket] Activity log (join) failed:", e.message),
+            );
+          }
+        })
+        .catch(() => {});
     });
 
     // ── Leave Auction Room ───────────────────────────────────

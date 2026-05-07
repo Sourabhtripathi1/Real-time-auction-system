@@ -19,8 +19,8 @@ const notificationSchema = new mongoose.Schema(
         "auction_lost",
         "seller_approved",
         "seller_rejected",
-        "auction_approved",
         "auction_rejected",
+        "auction_ending_soon",
       ],
       required: true,
     },
@@ -45,6 +45,7 @@ const notificationSchema = new mongoose.Schema(
       winnerName: { type: String, default: null },
       status: { type: String, default: null },
       reason: { type: String, default: null },
+      timeLeft: { type: Number, default: null },
     },
     isRead: {
       type: Boolean,

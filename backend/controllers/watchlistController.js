@@ -1,6 +1,11 @@
 import Watchlist from "../models/Watchlist.js";
+import Auction from "../models/Auction.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import {
+  logWatchlistAdded,
+  logWatchlistRemoved,
+} from "../services/activityService.js";
 
 export const addToWatchlist = async (req, res, next) => {
   try {
@@ -29,6 +34,23 @@ export const addToWatchlist = async (req, res, next) => {
       .json(
         new ApiResponse(201, watchlistItem, "Added to watchlist successfully"),
       );
+
+    // Log watchlist added activity (fire-and-forget)
+    Auction.findById(auctionId)
+      .select("title")
+      .lean()
+      .then((auction) => {
+        if (auction) {
+          logWatchlistAdded({
+            userId: req.user._id,
+            auctionId,
+            auctionTitle: auction.title,
+          }).catch((e) =>
+            console.error("[Watchlist] Activity log (add) failed:", e.message),
+          );
+        }
+      })
+      .catch(() => {});
   } catch (error) {
     // Also catch MongoDB duplicate key error if somehow concurrent requests bypass the findOne
     if (error.code === 11000) {
@@ -70,6 +92,23 @@ export const removeFromWatchlist = async (req, res, next) => {
     res
       .status(200)
       .json(new ApiResponse(200, null, "Removed from watchlist successfully"));
+
+    // Log watchlist removed activity (fire-and-forget)
+    Auction.findById(auctionId)
+      .select("title")
+      .lean()
+      .then((auction) => {
+        if (auction) {
+          logWatchlistRemoved({
+            userId: req.user._id,
+            auctionId,
+            auctionTitle: auction.title,
+          }).catch((e) =>
+            console.error("[Watchlist] Activity log (remove) failed:", e.message),
+          );
+        }
+      })
+      .catch(() => {});
   } catch (error) {
     next(error);
   }

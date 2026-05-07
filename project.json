@@ -1,7 +1,7 @@
 {
   "meta": {
     "file": "project.json",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Complete machine-readable project context for the MERN Real-Time Auction System.",
     "project_root": "Real-time-auction-system",
     "repository": "https://github.com/Sourabhtripathi1/Real-time-auction-system"
@@ -308,7 +308,11 @@
     { "method": "PATCH", "path": "/api/notifications/read-all", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Mark all notifications as read", "response_shape": "{ modifiedCount }" },
     { "method": "DELETE", "path": "/api/notifications/:id", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Delete a notification", "response_shape": "{ message }" },
     { "method": "GET", "path": "/api/notifications/preferences", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Get notification preferences", "response_shape": "{ preferences }" },
-    { "method": "PATCH", "path": "/api/notifications/preferences", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Update notification preferences", "body": ["pushNotifications", "preferences"], "response_shape": "{ preferences }" }
+    { "method": "PATCH", "path": "/api/notifications/preferences", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Update notification preferences", "body": ["pushNotifications", "preferences"], "response_shape": "{ preferences }" },
+    { "method": "GET", "path": "/api/activity/my", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "My personal activity feed (paginated, filterable by type/date)", "response_shape": "{ activities, pagination }" },
+    { "method": "GET", "path": "/api/activity/global", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Global public activity feed (admins see private too)", "response_shape": "{ activities, pagination }" },
+    { "method": "GET", "path": "/api/activity/by-type/:type", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Activities filtered by type enum", "response_shape": "{ activities, pagination, type }" },
+    { "method": "DELETE", "path": "/api/activity/:id", "auth": true, "roles": ["any"], "rate_limit": "100/min", "middleware_chain": ["protect"], "description": "Delete own activity (admin can delete any)", "response_shape": "{ message }" }
   ],
   "realtime_system": {
     "library": "Socket.io 4",
@@ -328,6 +332,8 @@
       "userRooms": "Map<socketId, Set<auctionId>>",
       "userConnectionCount": "Map<userId, count>",
       "socketBidTracker": "Map<socketId, {count, resetAt}>",
+      "activeBidders": "Map<auctionId, Map<userId, {name, lastBidTime}>>",
+      "global_activity_room": "global_activity (joined by clients viewing the global feed)",
       "max_connections_per_user": 5,
       "max_bids_per_minute": 20
     },
@@ -339,12 +345,40 @@
       { "name": "auctionEnded", "direction": "Server -> Room", "payload": "{ auctionId, winnerId, winnerName, finalBid }" },
       { "name": "viewerUpdate", "direction": "Server -> Room", "payload": "{ auctionId, viewers }" },
       { "name": "userJoined", "direction": "Server -> Room", "payload": "{ userId, totalViewers }" },
+      { "name": "viewerList", "direction": "Server -> Client", "payload": "{ auctionId, viewers: [{id, name, profileImage}], count }" },
+      { "name": "activeBidders", "direction": "Server -> Room", "payload": "{ auctionId, bidders: [name], count }" },
+      { "name": "auctionEndingSoon", "direction": "Server -> Room", "payload": "{ auctionId, timeLeft, auctionTitle }" },
       { "name": "bidError", "direction": "Server -> Client", "payload": "{ code, message }" },
-      { "name": "newNotification", "direction": "Server -> User", "payload": "{ id, type, title, message, data, isRead, createdAt }" }
+      { "name": "newNotification", "direction": "Server -> User", "payload": "{ id, type, title, message, data, isRead, createdAt }" },
+      { "name": "newActivity", "direction": "Server -> User+Global", "payload": "{ id, user: {name, profileImage}, type, action, metadata, isPublic, createdAt }" },
+      { "name": "joinGlobalFeed", "direction": "Client -> Server", "payload": "{}" },
+      { "name": "leaveGlobalFeed", "direction": "Client -> Server", "payload": "{}" }
+    ]
+  },
+  "activity_system": {
+    "types": ["bid_placed", "auction_created", "auction_started", "auction_ended", "watchlist_added", "watchlist_removed", "seller_authorized", "auction_approved", "auction_rejected", "user_joined_auction"],
+    "delivery": ["In-app (persisted MongoDB 90-day TTL)", "Socket.IO real-time push"],
+    "rooms": ["user_${userId} (personal feed)", "global_activity (public events)"],
+    "model_file": "backend/models/Activity.js",
+    "service_file": "backend/services/activityService.js",
+    "visibility": {
+      "public_types": ["bid_placed", "auction_created", "auction_started", "auction_ended", "user_joined_auction"],
+      "private_types": ["watchlist_added", "watchlist_removed", "seller_authorized", "auction_approved", "auction_rejected"]
+    },
+    "integration_points": [
+      { "trigger": "Bid placed", "function": "logBidPlaced", "called_from": "bidController.js" },
+      { "trigger": "Auction created", "function": "logAuctionCreated", "called_from": "auctionController.js" },
+      { "trigger": "Auction activates (scheduler)", "function": "logAuctionStarted", "called_from": "server.js scheduler" },
+      { "trigger": "Auction ends (scheduler)", "function": "logAuctionEnded", "called_from": "server.js scheduler" },
+      { "trigger": "Auction approved/rejected", "function": "logAuctionApproved/logAuctionRejected", "called_from": "auctionController.js" },
+      { "trigger": "Watchlist add", "function": "logWatchlistAdded", "called_from": "watchlistController.js" },
+      { "trigger": "Watchlist remove", "function": "logWatchlistRemoved", "called_from": "watchlistController.js" },
+      { "trigger": "Seller authorized", "function": "logSellerAuthorized", "called_from": "sellerAuthController.js" },
+      { "trigger": "User joins auction room (socket)", "function": "logUserJoinedAuction", "called_from": "socketHandler.js" }
     ]
   },
   "notification_system": {
-    "types": ["outbid", "auction_start", "auction_end", "watchlist_alert", "auction_won", "auction_lost", "seller_approved", "seller_rejected", "auction_approved", "auction_rejected"],
+    "types": ["outbid", "auction_start", "auction_end", "watchlist_alert", "auction_won", "auction_lost", "seller_approved", "seller_rejected", "auction_approved", "auction_rejected", "auction_ending_soon"],
     "delivery": ["In-app (persisted MongoDB)", "Socket.IO real-time push"],
     "user_room_pattern": "user_${userId}",
     "ttl": "30 days (auto-deleted via MongoDB TTL index)",

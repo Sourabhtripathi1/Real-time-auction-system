@@ -10,6 +10,7 @@ import AuctionList from "./pages/AuctionList";
 import AuctionRoom from "./pages/AuctionRoom";
 import Dashboard from "./pages/Dashboard";
 import Watchlist from "./pages/Watchlist";
+import ActivityPage from "./pages/ActivityPage";
 import Loader from "./components/Loader";
 
 // ── Guest Route wrapper ────────────────────────────────────
@@ -122,6 +123,15 @@ const AppLayout = () => {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/activity"
+            element={
+              <ProtectedRoute>
+                <ActivityPage />
               </ProtectedRoute>
             }
           />

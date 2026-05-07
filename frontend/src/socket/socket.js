@@ -71,4 +71,28 @@ socket.on("connect", () => {
   socket.io.opts.reconnection = true;
 });
 
+socket.on("viewerList", (data) => {
+  window.dispatchEvent(new CustomEvent("socket:viewerList", {
+    detail: data
+  }));
+});
+
+socket.on("activeBidders", (data) => {
+  window.dispatchEvent(new CustomEvent("socket:activeBidders", {
+    detail: data
+  }));
+});
+
+socket.on("auctionEndingSoon", (data) => {
+  window.dispatchEvent(new CustomEvent("socket:endingSoon", {
+    detail: data
+  }));
+});
+
+socket.on("newActivity", (data) => {
+  window.dispatchEvent(new CustomEvent("socket:newActivity", {
+    detail: data
+  }));
+});
+
 export default socket;

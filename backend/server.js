@@ -20,10 +20,15 @@ import watchlistRoutes from "./routes/watchlistRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import activityRoutes from "./routes/activityRoutes.js";
 import {
   notifyAuctionStart,
   notifyAuctionEnd,
 } from "./services/notificationService.js";
+import {
+  logAuctionStarted,
+  logAuctionEnded,
+} from "./services/activityService.js";
 import {
   apiRateLimiter,
   authRateLimiter,
@@ -111,6 +116,7 @@ app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/seller", sellerRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/activity", activityRoutes);
 
 // Health check
 app.get("/health", (_req, res) =>
@@ -167,6 +173,14 @@ const runAuctionScheduler = async () => {
               watchlistUserIds,
             });
           }
+          // Log activity: auction went live
+          logAuctionStarted({
+            sellerId: auction.seller,
+            auctionId: auction._id,
+            auctionTitle: auction.title,
+          }).catch((e) =>
+            console.error("[Scheduler] Activity log (start) failed:", e.message),
+          );
         } catch (notifErr) {
           console.error(
             `[Scheduler] Notification error for auction ${auction._id}:`,
@@ -222,6 +236,17 @@ const runAuctionScheduler = async () => {
             notifErr.message,
           );
         }
+
+        // ── Log auction ended activity ─────────────────────────
+        logAuctionEnded({
+          auctionId: auction._id,
+          auctionTitle: auction.title,
+          winnerId: auction.highestBidder,
+          winnerName,
+          finalBid: auction.currentHighestBid,
+        }).catch((e) =>
+          console.error("[Scheduler] Activity log (end) failed:", e.message),
+        );
       }
     }
   } catch (err) {

@@ -4,7 +4,13 @@ const calculateTimeLeft = (endTime) => {
   const diff = new Date(endTime).getTime() - Date.now();
 
   if (diff <= 0) {
-    return { days: 0, hours: 0, minutes: 0, seconds: 0, isExpired: true };
+    return { 
+      days: 0, hours: 0, minutes: 0, seconds: 0, 
+      isExpired: true,
+      isEndingSoon: false,
+      isCritical: false,
+      isUltraCritical: false
+    };
   }
 
   return {
@@ -13,6 +19,9 @@ const calculateTimeLeft = (endTime) => {
     minutes: Math.floor((diff / (1000 * 60)) % 60),
     seconds: Math.floor((diff / 1000) % 60),
     isExpired: false,
+    isEndingSoon: diff <= 5 * 60 * 1000,
+    isCritical: diff <= 1 * 60 * 1000,
+    isUltraCritical: diff <= 10 * 1000,
   };
 };
 

@@ -11,6 +11,8 @@ import CountdownTimer from "../components/CountdownTimer";
 import BidHistory from "../components/BidHistory";
 import ImageSlider from "../components/ImageSlider";
 import Loader from "../components/Loader";
+import LiveViewerList from "../components/LiveViewerList";
+import ActiveBiddersChip from "../components/ActiveBiddersChip";
 
 // ── Seller chip with avatar ────────────────────────────────
 const SellerChip = ({ seller }) => {
@@ -59,7 +61,9 @@ const AuctionRoom = () => {
   const [currentBid, setCurrentBid] = useState(0);
   const [highestBidder, setHighestBidder] = useState(null);
   const [endTime, setEndTime] = useState(null);
-  const [viewers, setViewers] = useState(1);
+  const [viewers, setViewers] = useState([]);
+  const [activeBidders, setActiveBidders] = useState([]);
+  const [isEndingSoon, setIsEndingSoon] = useState(false);
   const [winner, setWinner] = useState(null);
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
@@ -90,6 +94,7 @@ const AuctionRoom = () => {
         setCurrentBid(a.currentHighestBid);
         setHighestBidder(a.highestBidder);
         setEndTime(a.endTime);
+        setIsEndingSoon(a.isEndingSoon || false);
         if (a.status === "ended") {
           setAuctionEnded(true);
           if (a.highestBidder)
@@ -130,6 +135,7 @@ const AuctionRoom = () => {
         setCurrentBid(a.currentHighestBid);
         setHighestBidder(a.highestBidder);
         setEndTime(a.endTime);
+        setIsEndingSoon(a.isEndingSoon || false);
         const bidsData = bidsRes.data;
         setBids(bidsData?.bids || bidsData || []);
         setHasMoreBids(bidsData?.pagination?.hasNextPage ?? false);
@@ -165,11 +171,6 @@ const AuctionRoom = () => {
       setAuction((prev) => (prev ? { ...prev, status: "ended" } : prev));
       if (winnerName) setWinner({ name: winnerName, amount: finalBid });
     };
-    // Viewer count updated after anyone joins or disconnects
-    const onViewerUpdate = ({ auctionId: id, viewers: count }) => {
-      if (id === auctionId) setViewers(count);
-    };
-    // Reconnect: re-join room and re-fetch data after connection restored
     const onReconnect = () => {
       setIsReconnecting(false);
       rejoinAndRefetch();
@@ -181,7 +182,6 @@ const AuctionRoom = () => {
     socket.on("bidUpdated", onBidUpdated);
     socket.on("timerExtended", onTimerExtended);
     socket.on("auctionEnded", onAuctionEnded);
-    socket.on("viewerUpdate", onViewerUpdate);
     socket.on("connect", onReconnect);
     socket.on("disconnect", onDisconnect);
 
@@ -189,13 +189,49 @@ const AuctionRoom = () => {
       socket.off("bidUpdated", onBidUpdated);
       socket.off("timerExtended", onTimerExtended);
       socket.off("auctionEnded", onAuctionEnded);
-      socket.off("viewerUpdate", onViewerUpdate);
       socket.off("connect", onReconnect);
       socket.off("disconnect", onDisconnect);
       // Leave the room — do NOT disconnect the socket (reused across pages)
       leaveAuction(auctionId);
     };
   }, [auctionId, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Window event listeners for custom socket events
+  useEffect(() => {
+    const handleViewerList = (e) => setViewers(e.detail.viewers);
+    const handleViewerUpdate = (e) => setViewers(e.detail.viewers);
+    const handleActiveBidders = (e) => setActiveBidders(e.detail.bidders);
+    const handleEndingSoon = (e) => {
+      setIsEndingSoon(true);
+      window.dispatchEvent(
+        new CustomEvent("toast:show", {
+          detail: {
+            message: "⏱️ Auction ending in less than 5 minutes!",
+            type: "warning",
+            duration: 8000,
+          },
+        })
+      );
+      // Fallback if custom event is not caught
+      toast.warning("⏱️ Auction ending in less than 5 minutes!", {
+        autoClose: 8000,
+      });
+      const audio = new Audio("/notification.mp3");
+      audio.play().catch(() => {});
+    };
+
+    window.addEventListener("socket:viewerList", handleViewerList);
+    window.addEventListener("socket:viewerUpdate", handleViewerUpdate);
+    window.addEventListener("socket:activeBidders", handleActiveBidders);
+    window.addEventListener("socket:endingSoon", handleEndingSoon);
+
+    return () => {
+      window.removeEventListener("socket:viewerList", handleViewerList);
+      window.removeEventListener("socket:viewerUpdate", handleViewerUpdate);
+      window.removeEventListener("socket:activeBidders", handleActiveBidders);
+      window.removeEventListener("socket:endingSoon", handleEndingSoon);
+    };
+  }, []);
 
   const handlePlaceBid = async (e) => {
     e.preventDefault();
@@ -286,6 +322,41 @@ const AuctionRoom = () => {
             </h1>
           </div>
 
+          {/* Top section (above image slider) */}
+          <div className="flex items-center justify-between mb-4">
+            {/* Left: Viewers */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Watching:</span>
+              <LiveViewerList viewers={viewers} />
+              <span className="text-xs text-gray-400">
+                {viewers.length} {viewers.length === 1 ? "person" : "people"}
+              </span>
+            </div>
+
+            {/* Right: Active Bidders */}
+            {activeBidders.length > 0 && (
+              <ActiveBiddersChip 
+                bidders={activeBidders} 
+                count={activeBidders.length} 
+              />
+            )}
+          </div>
+
+          {/* Ending soon banner (conditional) */}
+          {isEndingSoon && auction?.status === "active" && !auctionEnded && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 animate-pulse">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
+              <div className="flex-1">
+                <p className="text-red-700 font-semibold text-sm">
+                  ⏱️ Auction Ending Soon!
+                </p>
+                <p className="text-red-600 text-xs">
+                  Less than 5 minutes remaining. Place your bid now!
+                </p>
+              </div>
+            </div>
+          )}
+
           <ImageSlider
             images={auction?.images}
             height="h-80"
@@ -308,16 +379,6 @@ const AuctionRoom = () => {
 
           <div className="flex flex-wrap items-center gap-4">
             <SellerChip seller={auction?.seller} />
-
-            <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full px-4 py-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
-              <span>
-                <strong className="text-gray-800 dark:text-gray-200">
-                  {viewers}
-                </strong>{" "}
-                watching
-              </span>
-            </div>
           </div>
         </div>
 

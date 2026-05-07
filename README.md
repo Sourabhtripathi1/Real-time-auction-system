@@ -87,7 +87,11 @@
 - Socket.IO rooms per auction (`auction_${id}`)
 - Live bid broadcasting to all room members
 - Anti-sniping: last 10s bid extends timer +10s
-- Live viewer count tracking per room
+- **Live Engagement:**
+  - Enhanced viewer list with avatars (up to 5 + overflow indicator)
+  - Active bidder tracking (bidders active in last 60s)
+  - "Auction Ending Soon" alerts (triggered when < 5 mins left)
+  - Visual urgency states on countdown timer
 - Automatic reconnection with room re-join
 - Reconnecting banner during connection loss
 - Ghost connection cleanup via:
@@ -107,9 +111,24 @@
 - Seller status change alerts (authorized/rejected/suspended)
 - Auction approval/rejection alerts for sellers
 
+### 📋 User Activity Feed
+- **10 activity types**: bid_placed, auction_created, auction_started, auction_ended, watchlist_added, watchlist_removed, seller_authorized, auction_approved, auction_rejected, user_joined_auction
+- **Real-time updates** via Socket.IO broadcast to `user_${id}` personal room and `global_activity` room
+- **Personal feed** (`/activity`) — user sees their own full history
+- **Global feed** — all public activities visible to everyone (private admin actions hidden from non-admins)
+- **Time-grouped display** — Today / Yesterday / This Week / Older
+- **Type filter** — filter by any activity type
+- **Load More pagination** — button-based (not infinite scroll)
+- **Auto-TTL**: activities auto-deleted from MongoDB after **90 days**
+- Centralized logging via `activityService.js` — all activity creation goes through `Activity.createActivity` static method
+- Integration points: bidController, auctionController, watchlistController, sellerAuthController, socketHandler, server.js scheduler
+- Private activities (watchlist, admin actions) visible only to the performing user
+
 ### 🎨 UI/UX Features
 - Interactive auction card grid (3-col desktop, 2-col tablet, 1-col mobile)
 - Custom ImageSlider (no external library): arrows, dots, thumbnails, autoplay, touch/swipe, keyboard navigation, image counter badge, skeleton shimmer
+- Live Engagement Components: `LiveViewerList` and `ActiveBiddersChip`
+- Activity Feed: `ActivityFeed`, `ActivityItem`, `ActivityPage`, time-grouped with skeleton loading
 - Skeleton loading for cards and table rows
 - IntersectionObserver — defers ImageSlider init until card enters viewport
 - Avatar dropdown in Navbar: profile image (or initials fallback), role badge, profile completion bar, "My Profile" link, Logout button
@@ -217,16 +236,22 @@ Real-time-auction-system/
 │   │   │                            changePassword, removeImage
 │   │   ├── sellerAuthController.js← Apply, getMyStatus, getAllSellers,
 │   │   │                            getSellerById, updateSellerStatus
-│   │   └── notificationController.js ← getMyNotifications, markAsRead,
-│   │                                   markAllAsRead, deleteNotification,
-│   │                                   getUnreadCount, preferences CRUD
+│   │   ├── notificationController.js ← getMyNotifications, markAsRead,
+│   │   │                              markAllAsRead, deleteNotification,
+│   │   │                              getUnreadCount, preferences CRUD
+│   │   └── activityController.js  ← getMyActivity, getGlobalActivity,
+│   │                                 getActivityByType, deleteActivity
 │   │
 │   ├── services/
-│   │   └── notificationService.js ← Centralized notification creation,
-│   │                                preference checking, Socket.IO push,
-│   │                                helpers: notifyOutbid, notifyAuctionStart,
-│   │                                notifyAuctionEnd, notifySellerStatusChange,
-│   │                                notifyAuctionStatusChange
+│   │   ├── notificationService.js ← Centralized notification creation,
+│   │   │                            preference checking, Socket.IO push,
+│   │   │                            helpers: notifyOutbid, notifyAuctionStart,
+│   │   │                            notifyAuctionEnd, notifySellerStatusChange,
+│   │   │                            notifyAuctionStatusChange
+│   │   └── activityService.js     ← Centralized activity logging,
+│   │                                 10 helper functions (logBidPlaced,
+│   │                                 logAuctionCreated, logAuctionEnded...)
+│   │                                 all fire-and-forget safe
 │   │
 │   ├── middleware/
 │   │   ├── authMiddleware.js      ← JWT verify + blacklist check 
@@ -248,9 +273,14 @@ Real-time-auction-system/
 │   │   ├── Bid.js                 ← 3 compound indexes
 │   │   ├── Watchlist.js           ← unique compound index {user, auction}
 │   │   ├── TokenBlacklist.js      ← tokenHash (SHA-256), TTL index (auto-expiry)
-│   │   ├── Notification.js        ← 10 types, recipient indexed, isRead,
+│   │   ├── Notification.js        ← 11 types (incl. auction_ending_soon),
+│   │   │                            recipient indexed, isRead,
 │   │   │                            data payload, 30-day TTL auto-delete
-│   │   └── NotificationPreferences.js ← per-user toggles, push/email flags
+│   │   ├── NotificationPreferences.js ← per-user toggles, push/email flags
+│   │   └── Activity.js            ← 10 activity types, user ref, isPublic,
+│   │                                metadata, 90-day TTL, 4 indexes,
+│   │                                createActivity() static method with
+│   │                                socket broadcast
 │   │
 │   ├── routes/
 │   │   ├── authRoutes.js          ← register, login, logout, me
@@ -262,15 +292,18 @@ Real-time-auction-system/
 │   │   │                            change-password, remove-image
 │   │   ├── sellerRoutes.js        ← apply, my-status, all, :sellerId,
 │   │   │                            :sellerId/status
-│   │   └── notificationRoutes.js  ← my, unread-count, :id/read,
-│   │                                read-all, :id, preferences
+│   │   ├── notificationRoutes.js  ← my, unread-count, :id/read,
+│   │   │                            read-all, :id, preferences
+│   │   └── activityRoutes.js      ← my, global, by-type/:type, :id
 │   │
 │   ├── socket/
 │   │   └── socketHandler.js       ← io.use() JWT+blacklist+isBlocked auth,
 │   │                                joinAuction, leaveAuction,
+│   │                                joinGlobalFeed, leaveGlobalFeed,
 │   │                                user_${id} personal room join,
 │   │                                disconnect cleanup, userRooms Map,
-│   │                                socketBidTracker, viewerUpdate emit
+│   │                                activeBidders Map, socketBidTracker,
+│   │                                viewerUpdate emit, logUserJoinedAuction
 │   │
 │   └── utils/
 │       ├── ApiError.js
@@ -302,7 +335,8 @@ Real-time-auction-system/
         │                             ToastProvider, useToast hook
         │
         ├── hooks/
-        │   ├── useCountdown.js     ← Live countdown, endTime update restart
+        │   ├── useCountdown.js     ← Live countdown, urgency states
+        │   │                         (isEndingSoon, isCritical, isUltraCritical)
         │   ├── useBid.js           ← Bid state machine + 409 Conflict handler
         │   │                         + input auto-update on conflict
         │   ├── useProfile.js       ← fetchProfile, handleUpdateProfile,
@@ -310,6 +344,9 @@ Real-time-auction-system/
         │   ├── useDashboardFilters.js ← search, status, sortBy, sortOrder,
         │   │                           page, limit, dateRange, priceRange,
         │   │                           buildQueryString, activeFilterCount
+        │   ├── useActivity.js      ← Fetches activity feed (my/global),
+        │   │                         pagination + loadMore, real-time
+        │   │                         prepend via socket:newActivity event
         │   └── useIntersectionObserver.js ← Trigger once on viewport entry
         │
         ├── services/
@@ -326,14 +363,18 @@ Real-time-auction-system/
         │   ├── sellerAuthApi.js    ← submitApplication, getMyStatus,
         │   │                         getAllSellers, getSellerById,
         │   │                         updateSellerStatus
-        │   └── dashboardApi.js     ← getMyAuctions, getPendingAuctions,
-        │                             getAllAuctions, getMyBids (all paginated)
+        │   ├── dashboardApi.js     ← getMyAuctions, getPendingAuctions,
+        │   │                         getAllAuctions, getMyBids (all paginated)
+        │   └── activityApi.js      ← getMyActivity, getGlobalActivity,
+        │                             getActivityByType, deleteActivity
         │
         ├── socket/
         │   └── socket.js           ← Singleton, connectSocket(token),
         │                             disconnectSocket, reconnect handling,
-        │                             server-kick detection, all auth 
-        │                             error codes handled
+        │                             server-kick detection, all auth
+        │                             error codes handled, viewerList,
+        │                             activeBidders, auctionEndingSoon,
+        │                             newActivity event dispatchers
         │
         ├── components/
         │   ├── Navbar.jsx          ← Role-aware links, avatar + initials fallback,
@@ -368,6 +409,14 @@ Real-time-auction-system/
         │   │                         unsaved changes warning
         │   ├── Toast.jsx           ← Stack, auto-dismiss 4s, progress bar,
         │   │                         4 types, slide in/out animation
+        │   ├── LiveViewerList.jsx  ← Avatar stack with +N overflow for viewers
+        │   ├── ActiveBiddersChip.jsx ← Pulsing green chip, active bidder names
+        │   ├── ActivityFeed.jsx    ← Time-grouped feed (Today/Yesterday/
+        │   │                         This Week/Older), skeleton loading,
+        │   │                         Load More button, my/global feedType
+        │   ├── ActivityItem.jsx    ← User avatar, action text, metadata
+        │   │                         badges, relative timestamp, type icon,
+        │   │                         full dark mode, React.memo
         │   │
         │   ├── dashboard/
         │   │   ├── SearchBar.jsx   ← Debounced 300ms, clear button, spinner
@@ -399,16 +448,20 @@ Real-time-auction-system/
             ├── AuctionList.jsx     ← Card grid, search, filter tabs, sort,
             │                         skeleton loading, socket bid updates,
             │                         auto-refresh 30s, IntersectionObserver
-            ├── AuctionRoom.jsx     ← Full real-time room, ImageSlider 
+            ├── AuctionRoom.jsx     ← Full real-time room, ImageSlider
             │                         with thumbnails, bid conflict flash,
             │                         reconnect banner, winner banner,
-            │                         Load More bids, viewerUpdate
+            │                         LiveViewerList, ActiveBiddersChip,
+            │                         Ending soon banner, Load More bids
             ├── Dashboard.jsx       ← Seller: status banner + auction CRUD
             │                         + summary cards + filter/paginate
-            │                         Admin: pending + all auctions + 
+            │                         Admin: pending + all auctions +
             │                         manage sellers tabs
             │                         Bidder: my bids with pagination
-            └── Watchlist.jsx       ← Card grid of saved auctions
+            ├── Watchlist.jsx       ← Card grid of saved auctions
+            └── ActivityPage.jsx    ← My Activity / Global Feed tabs,
+                                      type filter, live indicator,
+                                      joinGlobalFeed socket management
 ```
 
 ---
@@ -542,6 +595,24 @@ Indexes:
 
 Index: `{ user: 1 }` (unique)
 
+### Activities Collection
+
+| Field | Type | Notes |
+|-------|------|-------|
+| _id | ObjectId | Auto index |
+| user | ObjectId | ref: User, required, indexed |
+| type | String (Enum) | 10 values (bid_placed, auction_created, etc.) |
+| action | String | Human-readable description, max 200 chars |
+| metadata | Object | { auctionId, auctionTitle, bidAmount, previousBid, winnerId, winnerName, targetUserId, targetUserName, reason } |
+| isPublic | Boolean | Default: true; false for private admin/watchlist actions |
+| createdAt | Date | Default: now, indexed |
+
+Indexes:
+- `{ user: 1, createdAt: -1 }` (personal feed)
+- `{ type: 1, createdAt: -1 }` (filter by type)
+- `{ isPublic: 1, createdAt: -1 }` (global feed)
+- `{ createdAt: 1 }` TTL (expireAfterSeconds: 7776000 — 90 days)
+
 ---
 
 ## 📡 API Reference
@@ -584,6 +655,10 @@ Index: `{ user: 1 }` (unique)
 | DELETE | `/api/notifications/:id` | Yes | Any | 100/min | Delete a notification |
 | GET | `/api/notifications/preferences` | Yes | Any | 100/min | Get notification preferences |
 | PATCH | `/api/notifications/preferences` | Yes | Any | 100/min | Update notification preferences |
+| GET | `/api/activity/my` | Yes | Any | 100/min | Personal activity feed (paginated, filterable) |
+| GET | `/api/activity/global` | Yes | Any | 100/min | Global public activity feed |
+| GET | `/api/activity/by-type/:type` | Yes | Any | 100/min | Activities filtered by type |
+| DELETE | `/api/activity/:id` | Yes | Any | 100/min | Delete own activity (admin deletes any) |
 
 *Admin and Seller are restricted from `/api/auctions/live` at backend
 †Requires `sellerStatus: "authorized"` via `requireAuthorizedSeller` middleware
@@ -603,6 +678,12 @@ Index: `{ user: 1 }` (unique)
 | userJoined | Server → Room | `{ userId, totalViewers }` | User entered room |
 | bidError | Server → Client | `{ code, message }` | Bid failed (RATE_LIMITED, AUTH_BLOCKED) |
 | newNotification | Server → User | `{ id, type, title, message, data, isRead, createdAt }` | Push notification to user's personal room |
+| viewerList | Server → Client | `{ auctionId, viewers: [{id,name,profileImage}], count }` | Full viewer list on join |
+| activeBidders | Server → Room | `{ auctionId, bidders: [name], count }` | Active bidders (60s window) |
+| auctionEndingSoon | Server → Room | `{ auctionId, timeLeft, auctionTitle }` | < 5 minutes warning |
+| newActivity | Server → User+Global | `{ id, user, type, action, metadata, isPublic, createdAt }` | Real-time activity broadcast |
+| joinGlobalFeed | Client → Server | `{}` | Subscribe to global_activity room |
+| leaveGlobalFeed | Client → Server | `{}` | Unsubscribe from global_activity room |
 
 Socket Connection Auth:
 - Token via `socket.handshake.auth.token`
@@ -914,6 +995,35 @@ Seller creates/edits auction
   → Store: [{ url, publicId }] in Auction.images
   → On update: Promise.all deleteFromCloudinary for old images
   → On delete: purge all images + auction + bids + watchlists
+```
+
+### Socket Events
+- `joinAuction`: Client joins room, triggering viewerList (to client) and viewerUpdate (to room).
+- `leaveAuction`: Client leaves room, triggering viewerUpdate.
+- `bidUpdated`: Server broadcasts new highest bid.
+- `timerExtended`: Server broadcasts anti-snipe time extension.
+- `auctionEnded`: Server broadcasts winner and final bid.
+- `viewerUpdate`: Server broadcasts updated viewer count/list.
+- `viewerList`: Server sends current viewers (with avatars) to joining client.
+- `activeBidders`: Server broadcasts bidders active in the last 60s.
+- `auctionEndingSoon`: Server broadcasts when < 5 mins left.
+- `newNotification`: Server pushes in-app notification to `user_${id}` room.
+
+### Live Engagement Flow
+```
+User joins auction room
+  → Socket joins `auction_${id}`
+  → Server fetches user details (name, avatar)
+  → Server emits `viewerList` to joined user
+  → Server broadcasts `viewerUpdate` to all room members
+  
+User places bid
+  → REST API processes bid
+  → Server updates `activeBidders` Map
+  → Server broadcasts `activeBidders` to all room members
+  → If time < 5 mins and wasn't previously:
+      → Server broadcasts `auctionEndingSoon`
+      → Server creates `auction_ending_soon` Notification for all viewers
 ```
 
 ---

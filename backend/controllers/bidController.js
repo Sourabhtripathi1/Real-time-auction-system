@@ -4,7 +4,9 @@ import User from "../models/User.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
-import { notifyOutbid } from "../services/notificationService.js";
+import { notifyOutbid, createNotification } from "../services/notificationService.js";
+import { activeBidders } from "../socket/socketHandler.js";
+import { logBidPlaced } from "../services/activityService.js";
 
 const ANTI_SNIPE_THRESHOLD_MS = 10_000;
 const ANTI_SNIPE_EXTENSION_MS = 10_000;
@@ -183,6 +185,86 @@ export const placeBid = async (req, res, next) => {
         console.error("[Bid] Outbid notification failed:", err.message),
       );
     }
+
+    // ── Update Active Bidders Map ──────────────────────────
+    const auctionIdStr = auctionId.toString();
+    if (!activeBidders.has(auctionIdStr)) {
+      activeBidders.set(auctionIdStr, new Map());
+    }
+
+    activeBidders.get(auctionIdStr).set(req.user._id.toString(), {
+      name: req.user.name,
+      lastBidTime: Date.now(),
+    });
+
+    const active = Array.from(activeBidders.get(auctionIdStr).values()).map(
+      (b) => b.name,
+    );
+
+    io.to(`auction_${auctionIdStr}`).emit("activeBidders", {
+      auctionId: auctionIdStr,
+      bidders: active,
+      count: active.length,
+    });
+
+    // ── Check if auction is ending soon (< 5 minutes) ───────
+    const timeLeft = new Date(updatedAuction.endTime) - Date.now();
+    const FIVE_MINUTES = 5 * 60 * 1000;
+
+    if (
+      timeLeft > 0 &&
+      timeLeft <= FIVE_MINUTES &&
+      timeLeft > FIVE_MINUTES - 10000
+    ) {
+      // Auction just crossed into "ending soon" window
+      // Notify all room members ONCE
+      io.to(`auction_${auctionIdStr}`).emit("auctionEndingSoon", {
+        auctionId: auctionIdStr,
+        timeLeft,
+        auctionTitle: updatedAuction.title,
+      });
+
+      // Send in-app notification to all viewers
+      const room = io.sockets.adapter.rooms.get(`auction_${auctionIdStr}`);
+
+      if (room) {
+        const viewerIds = [];
+        for (const socketId of room) {
+          const socket = io.sockets.sockets.get(socketId);
+          if (socket?.user?._id) {
+            viewerIds.push(socket.user._id);
+          }
+        }
+
+        // Send notification to all viewers
+        await Promise.all(
+          viewerIds.map((userId) =>
+            createNotification({
+              recipientId: userId,
+              type: "auction_ending_soon",
+              title: "Auction ending soon!",
+              message: `"${updatedAuction.title}" ends in less than 5 minutes`,
+              data: {
+                auctionId: auctionIdStr,
+                auctionTitle: updatedAuction.title,
+                timeLeft,
+              },
+            }),
+          ),
+        );
+      }
+    }
+
+    // ── Log bid placed activity (fire-and-forget) ─────────────
+    logBidPlaced({
+      userId: req.user._id,
+      auctionId,
+      auctionTitle: updatedAuction.title,
+      bidAmount,
+      previousBid,
+    }).catch((e) =>
+      console.error("[Bid] Activity log failed:", e.message),
+    );
 
     // ── Response ───────────────────────────────────────────
     res.status(201).json(

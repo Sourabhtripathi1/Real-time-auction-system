@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
 import { notifySellerStatusChange } from "../services/notificationService.js";
+import { logSellerAuthorized } from "../services/activityService.js";
 
 const ALLOWED_SORT_FIELDS = new Set(["createdAt", "sellerAppliedAt", "name"]);
 
@@ -315,6 +316,17 @@ export const updateSellerStatus = async (req, res, next) => {
         reason: reason?.trim() || null,
       }).catch((err) =>
         console.error("[Seller] Status notification failed:", err.message),
+      );
+    }
+
+    // ── Log activity for seller authorization ─────────────────
+    if (action === "authorize") {
+      logSellerAuthorized({
+        adminId: req.user._id,
+        sellerId: seller._id,
+        sellerName: seller.name,
+      }).catch((e) =>
+        console.error("[Seller] Activity log (authorize) failed:", e.message),
       );
     }
 

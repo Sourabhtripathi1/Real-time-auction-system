@@ -165,6 +165,14 @@ const Navbar = () => {
                     Dashboard
                   </Link>
                 )}
+                {isAuthenticated && (
+                  <Link
+                    to="/activity"
+                    className="relative px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-all flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Activity
+                  </Link>
+                )}
                 {isAuthenticated && user?.role === "bidder" && (
                   <Link
                     to="/watchlist"

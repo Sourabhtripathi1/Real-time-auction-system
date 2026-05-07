@@ -26,6 +26,7 @@ const notificationPreferencesSchema = new mongoose.Schema(
       auction_lost: { type: Boolean, default: true },
       seller_status: { type: Boolean, default: true },
       auction_status: { type: Boolean, default: true },
+      auction_ending_soon: { type: Boolean, default: true },
     },
   },
   {
