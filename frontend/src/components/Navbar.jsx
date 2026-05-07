@@ -165,6 +165,13 @@ const Navbar = () => {
                     Dashboard
                   </Link>
                 )}
+                {isAuthenticated && user?.role === "admin" && (
+                  <Link
+                    to="/analytics"
+                    className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-all">
+                    Analytics
+                  </Link>
+                )}
                 {isAuthenticated && (
                   <Link
                     to="/activity"

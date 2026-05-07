@@ -70,6 +70,10 @@
 - Cloudinary image upload (up to 5 per auction, 5MB each, auto-transforms to 1200×800)
 - Dashboard with search, filter tabs, sort, date range, price range, pagination
 - Summary cards showing auction counts per status
+- **📊 Seller Metrics Tab**:
+  - View comprehensive metrics across all seller auctions
+  - Monitor Views, Bids, Conversion %, Avg Bid, and Status per auction
+  - Expand rows to see detailed conversion funnels and key performance indicators
 
 ### 🛡️ Admin Features
 - Manage all auctions across all statuses with search/filter/pagination
@@ -82,6 +86,13 @@
   - Reinstate suspended sellers
 - View seller detail modal: (full profile, business info, recent auctions, current status reason, action buttons)
 - Pending auction count badges on tabs
+- **📊 Admin Analytics Dashboard**:
+  - Overview metrics (Total Revenue, Auctions, Bids, Active Users, etc.)
+  - Revenue timeline chart (Last 30 Days)
+  - Auctions by status breakdown (Pie chart)
+  - Peak bidding hours (Histogram)
+  - User growth trends
+  - Top 10 Auctions by Revenue table
 
 ### ⚡ Real-Time System
 - Socket.IO rooms per auction (`auction_${id}`)
@@ -91,6 +102,13 @@
   - Enhanced viewer list with avatars (up to 5 + overflow indicator)
   - Active bidder tracking (bidders active in last 60s)
   - "Auction Ending Soon" alerts (triggered when < 5 mins left)
+  - Live activity feed showing bids, joins, lists, starts and ends
+- **Auction Performance Metrics Tracking:**
+  - Unique view counting and session duration accumulation (via Socket/IP tracking)
+  - Conversion funnels tracking Views → Bids → Wins
+  - Time-to-first-bid tracking
+  - Bid-to-view ratios and peak bidding hours
+  - Asynchronous metrics calculation cache (`AuctionMetrics`) for real-time dashboard performance
   - Visual urgency states on countdown timer
 - Automatic reconnection with room re-join
 - Reconnecting banner during connection loss
@@ -152,6 +170,7 @@
 | HTTP Client  | Axios                              | JWT interceptors, 403 handler  |
 | Real-Time    | Socket.io-client                   | Auto-reconnect configured      |
 | Notifications| React Toastify                     | Toast system                   |
+| Charts       | Recharts                           | Responsive, SVG-based charts   |
 | Backend      | Node.js v20 + Express 5            | ESM modules                    |
 | Database     | MongoDB + Mongoose 9               | Indexes, lean(), transactions  |
 | Real-Time    | Socket.io 4                        | Rooms, heartbeat, auth middleware|
@@ -239,8 +258,10 @@ Real-time-auction-system/
 │   │   ├── notificationController.js ← getMyNotifications, markAsRead,
 │   │   │                              markAllAsRead, deleteNotification,
 │   │   │                              getUnreadCount, preferences CRUD
-│   │   └── activityController.js  ← getMyActivity, getGlobalActivity,
-│   │                                 getActivityByType, deleteActivity
+│   │   ├── activityController.js  ← getMyActivity, getGlobalActivity,
+│   │   │                             getActivityByType, deleteActivity
+│   │   └── analyticsController.js ← Admin parallel aggregation metrics
+│   │                                 (overview, revenue, status, bids, etc.)
 │   │
 │   ├── services/
 │   │   ├── notificationService.js ← Centralized notification creation,
@@ -294,7 +315,8 @@ Real-time-auction-system/
 │   │   │                            :sellerId/status
 │   │   ├── notificationRoutes.js  ← my, unread-count, :id/read,
 │   │   │                            read-all, :id, preferences
-│   │   └── activityRoutes.js      ← my, global, by-type/:type, :id
+│   │   ├── activityRoutes.js      ← my, global, by-type/:type, :id
+│   │   └── analyticsRoutes.js     ← Protected admin-only analytics endpoints
 │   │
 │   ├── socket/
 │   │   └── socketHandler.js       ← io.use() JWT+blacklist+isBlocked auth,
@@ -365,8 +387,9 @@ Real-time-auction-system/
         │   │                         updateSellerStatus
         │   ├── dashboardApi.js     ← getMyAuctions, getPendingAuctions,
         │   │                         getAllAuctions, getMyBids (all paginated)
-        │   └── activityApi.js      ← getMyActivity, getGlobalActivity,
+        │   ├── activityApi.js      ← getMyActivity, getGlobalActivity,
         │                             getActivityByType, deleteActivity
+        │   └── analyticsApi.js     ← Admin analytics data fetching
         │
         ├── socket/
         │   └── socket.js           ← Singleton, connectSocket(token),
@@ -459,9 +482,11 @@ Real-time-auction-system/
             │                         manage sellers tabs
             │                         Bidder: my bids with pagination
             ├── Watchlist.jsx       ← Card grid of saved auctions
-            └── ActivityPage.jsx    ← My Activity / Global Feed tabs,
-                                      type filter, live indicator,
-                                      joinGlobalFeed socket management
+            ├── ActivityPage.jsx    ← My Activity / Global Feed tabs,
+            │                         type filter, live indicator,
+            │                         joinGlobalFeed socket management
+            └── AdminAnalyticsDashboard.jsx ← Parallel data fetching, 
+                                              5-min auto refresh, charts
 ```
 
 ---
@@ -659,6 +684,12 @@ Indexes:
 | GET | `/api/activity/global` | Yes | Any | 100/min | Global public activity feed |
 | GET | `/api/activity/by-type/:type` | Yes | Any | 100/min | Activities filtered by type |
 | DELETE | `/api/activity/:id` | Yes | Any | 100/min | Delete own activity (admin deletes any) |
+| GET | `/api/analytics/overview` | Yes | Admin | 100/min | Top-level dashboard stats |
+| GET | `/api/analytics/revenue-by-day` | Yes | Admin | 100/min | Revenue over time |
+| GET | `/api/analytics/auctions-by-status` | Yes | Admin | 100/min | Pie chart data |
+| GET | `/api/analytics/bid-frequency` | Yes | Admin | 100/min | Hourly bidding histogram |
+| GET | `/api/analytics/top-auctions` | Yes | Admin | 100/min | Top auctions by revenue |
+| GET | `/api/analytics/user-growth` | Yes | Admin | 100/min | User registration trend |
 
 *Admin and Seller are restricted from `/api/auctions/live` at backend
 †Requires `sellerStatus: "authorized"` via `requireAuthorizedSeller` middleware

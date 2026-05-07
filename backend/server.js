@@ -21,6 +21,8 @@ import profileRoutes from "./routes/profileRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
+import auctionMetricsRoutes from "./routes/auctionMetricsRoutes.js";
 import {
   notifyAuctionStart,
   notifyAuctionEnd,
@@ -110,6 +112,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ── API Routes ─────────────────────────────────────────────
 // Strict limit on auth routes
 app.use("/api/auth", authRateLimiter, authRoutes);
+app.use("/api/auctions", auctionMetricsRoutes);
 app.use("/api/auctions", auctionRoutes);
 app.use("/api/bids", bidRoutes);
 app.use("/api/watchlist", watchlistRoutes);
@@ -117,6 +120,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/seller", sellerRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Health check
 app.get("/health", (_req, res) =>

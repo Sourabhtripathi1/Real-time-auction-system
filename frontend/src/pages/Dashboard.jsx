@@ -30,6 +30,7 @@ import SellerStatusBanner from "../components/seller/SellerStatusBanner";
 import SellerApplicationModal from "../components/seller/SellerApplicationModal";
 import SellerDetailModal from "../components/admin/SellerDetailModal";
 import SellerStatusActionModal from "../components/admin/SellerStatusActionModal";
+import SellerMetricsTab from "../components/analytics/SellerMetricsTab";
 import useDashboardFilters from "../hooks/useDashboardFilters";
 
 // ── Status config ──────────────────────────────────────────
@@ -386,6 +387,7 @@ const AuctionActions = ({ auction, onEdit, onSubmit, onDelete }) => {
 const SellerDashboard = () => {
   const { socket } = useSocket();
   const filters = useDashboardFilters();
+  const [sellerViewTab, setSellerViewTab] = useState("auctions"); // 'auctions' | 'metrics'
 
   const [auctions, setAuctions] = useState([]);
   const [pagination, setPagination] = useState({});
@@ -608,11 +610,35 @@ const SellerDashboard = () => {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              My Auctions
-            </h2>
+            <div className="flex items-center gap-4 mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Seller Dashboard
+              </h2>
+              <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setSellerViewTab("auctions")}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition ${
+                    sellerViewTab === "auctions"
+                      ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  }`}>
+                  My Auctions
+                </button>
+                <button
+                  onClick={() => setSellerViewTab("metrics")}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition flex items-center gap-1.5 ${
+                    sellerViewTab === "metrics"
+                      ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white"
+                      : "text-gray-500 dark:bg-transparent dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  }`}>
+                  📊 Metrics
+                </button>
+              </div>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Manage and track all your auction listings
+              {sellerViewTab === "auctions"
+                ? "Manage and track all your auction listings"
+                : "View performance analytics for your auctions"}
             </p>
           </div>
 
@@ -636,171 +662,178 @@ const SellerDashboard = () => {
           )}
         </div>
 
-        {/* Summary cards */}
-        <SummaryCards
-          summary={summary}
-          role="seller"
-          isLoading={isLoading && !auctions.length}
-          activeStatus={filters.filters.status}
-          onStatusClick={filters.setStatus}
-        />
+        {/* ── Seller View Content ── */}
+        {sellerViewTab === "metrics" ? (
+          <SellerMetricsTab />
+        ) : (
+          <>
+            {/* Summary cards */}
+            <SummaryCards
+              summary={summary}
+              role="seller"
+              isLoading={isLoading && !auctions.length}
+              activeStatus={filters.filters.status}
+              onStatusClick={filters.setStatus}
+            />
 
-        {/* Status tabs */}
-        <StatusTabs
-          tabs={sellerTabs}
-          activeTab={filters.filters.status}
-          onChange={filters.setStatus}
-        />
+            {/* Status tabs */}
+            <StatusTabs
+              tabs={sellerTabs}
+              activeTab={filters.filters.status}
+              onChange={filters.setStatus}
+            />
 
-        {/* Filter bar */}
-        <FilterBar
-          filters={filters.filters}
-          onFilterChange={filters}
-          onReset={filters.resetFilters}
-          activeCount={filters.activeFilterCount}
-          role="seller"
-          isLoading={isLoading}
-        />
+            {/* Filter bar */}
+            <FilterBar
+              filters={filters.filters}
+              onFilterChange={filters}
+              onReset={filters.resetFilters}
+              activeCount={filters.activeFilterCount}
+              role="seller"
+              isLoading={isLoading}
+            />
 
-        {/* Table */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-800">
-                <tr>
-                  <Th className="w-8">#</Th>
-                  <Th>Auction</Th>
-                  <SortTh label="Price" field="basePrice" filters={filters} />
-                  <Th>Status</Th>
-                  <SortTh label="Timeline" field="endTime" filters={filters} />
-                  <Th>Bids</Th>
-                  <Th>Actions</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {isLoading ? (
-                  <SkeletonRows cols={7} />
-                ) : auctions.length === 0 ? (
-                  <EmptyState
-                    hasFilters={filters.activeFilterCount > 0}
-                    onClearFilters={filters.resetFilters}
-                    onCreate={() => setIsCreateOpen(true)}
-                    emptyTitle="No auctions yet"
-                    emptySubtitle="Create your first auction to get started"
-                    emptyAction="Create Auction"
-                  />
-                ) : (
-                  auctions.map((a, idx) => {
-                    const page = filters.filters.page;
-                    const limit = filters.filters.limit;
-                    const rowNum = (page - 1) * limit + idx + 1;
-                    const isEndingSoon =
-                      a.status === "active" &&
-                      new Date(a.endTime) - Date.now() < 3_600_000;
-                    const isFading = fadingId === a._id;
-                    const isFlashing = flashId === a._id;
+            {/* Table */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-800">
+                    <tr>
+                      <Th className="w-8">#</Th>
+                      <Th>Auction</Th>
+                      <SortTh label="Price" field="basePrice" filters={filters} />
+                      <Th>Status</Th>
+                      <SortTh label="Timeline" field="endTime" filters={filters} />
+                      <Th>Bids</Th>
+                      <Th>Actions</Th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {isLoading ? (
+                      <SkeletonRows cols={7} />
+                    ) : auctions.length === 0 ? (
+                      <EmptyState
+                        hasFilters={filters.activeFilterCount > 0}
+                        onClearFilters={filters.resetFilters}
+                        onCreate={() => setIsCreateOpen(true)}
+                        emptyTitle="No auctions yet"
+                        emptySubtitle="Create your first auction to get started"
+                        emptyAction="Create Auction"
+                      />
+                    ) : (
+                      auctions.map((a, idx) => {
+                        const page = filters.filters.page;
+                        const limit = filters.filters.limit;
+                        const rowNum = (page - 1) * limit + idx + 1;
+                        const isEndingSoon =
+                          a.status === "active" &&
+                          new Date(a.endTime) - Date.now() < 3_600_000;
+                        const isFading = fadingId === a._id;
+                        const isFlashing = flashId === a._id;
 
-                    return (
-                      <tr
-                        key={a._id}
-                        className={`transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-800/40 ${
-                          isFading ? "opacity-0 scale-98" : "opacity-100"
-                        } ${isFlashing ? "bg-indigo-50 dark:bg-indigo-950/30" : ""}`}>
-                        <td className="px-4 py-3 text-xs text-gray-400 dark:text-gray-600 font-mono">
-                          {rowNum}
-                        </td>
+                        return (
+                          <tr
+                            key={a._id}
+                            className={`transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-800/40 ${
+                              isFading ? "opacity-0 scale-98" : "opacity-100"
+                            } ${isFlashing ? "bg-indigo-50 dark:bg-indigo-950/30" : ""}`}>
+                            <td className="px-4 py-3 text-xs text-gray-400 dark:text-gray-600 font-mono">
+                              {rowNum}
+                            </td>
 
-                        {/* Auction */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <AuctionThumb
-                              auction={a}
-                              onLightbox={setLightboxImages}
-                            />
-                            <div className="min-w-0">
+                            {/* Auction */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <AuctionThumb
+                                  auction={a}
+                                  onLightbox={setLightboxImages}
+                                />
+                                <div className="min-w-0">
+                                  <p
+                                    className="font-medium text-gray-900 dark:text-white text-sm leading-tight truncate max-w-[180px]"
+                                    title={a.title}>
+                                    {a.title}
+                                  </p>
+                                  <p className="text-xs text-gray-400 dark:text-gray-600 font-mono mt-0.5">
+                                    #{a._id.slice(-6)}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Price */}
+                            <td className="px-4 py-3">
+                              <p className="text-xs text-gray-400 dark:text-gray-500">
+                                Base: ₹{a.basePrice?.toLocaleString("en-IN")}
+                              </p>
+                              {a.currentHighestBid > 0 ? (
+                                <p
+                                  className={`font-semibold text-sm mt-0.5 transition-colors ${isFlashing ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400"}`}>
+                                  ₹{a.currentHighestBid?.toLocaleString("en-IN")}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                  No bids
+                                </p>
+                              )}
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-4 py-3">
+                              <StatusBadge status={a.status} />
+                            </td>
+
+                            {/* Timeline */}
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {fmtDate(a.startTime)}
+                              </p>
                               <p
-                                className="font-medium text-gray-900 dark:text-white text-sm leading-tight truncate max-w-[180px]"
-                                title={a.title}>
-                                {a.title}
+                                className={`text-xs mt-0.5 ${isEndingSoon ? "text-red-500 dark:text-red-400 font-semibold" : "text-gray-500 dark:text-gray-400"}`}>
+                                → {fmtDate(a.endTime)}
+                                {isEndingSoon && " ⚡"}
                               </p>
-                              <p className="text-xs text-gray-400 dark:text-gray-600 font-mono mt-0.5">
-                                #{a._id.slice(-6)}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
+                            </td>
 
-                        {/* Price */}
-                        <td className="px-4 py-3">
-                          <p className="text-xs text-gray-400 dark:text-gray-500">
-                            Base: ₹{a.basePrice?.toLocaleString("en-IN")}
-                          </p>
-                          {a.currentHighestBid > 0 ? (
-                            <p
-                              className={`font-semibold text-sm mt-0.5 transition-colors ${isFlashing ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400"}`}>
-                              ₹{a.currentHighestBid?.toLocaleString("en-IN")}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                              No bids
-                            </p>
-                          )}
-                        </td>
+                            {/* Bids */}
+                            <td className="px-4 py-3">
+                              <span
+                                className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                  a.bidCount > 0
+                                    ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400"
+                                    : "bg-gray-100 dark:bg-gray-800 text-gray-400"
+                                }`}>
+                                {a.bidCount ?? 0} bids
+                              </span>
+                            </td>
 
-                        {/* Status */}
-                        <td className="px-4 py-3">
-                          <StatusBadge status={a.status} />
-                        </td>
+                            {/* Actions */}
+                            <td className="px-4 py-3">
+                              <AuctionActions
+                                auction={a}
+                                onEdit={setEditingAuction}
+                                onSubmit={handleSubmitForReview}
+                                onDelete={handleDelete}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-                        {/* Timeline */}
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {fmtDate(a.startTime)}
-                          </p>
-                          <p
-                            className={`text-xs mt-0.5 ${isEndingSoon ? "text-red-500 dark:text-red-400 font-semibold" : "text-gray-500 dark:text-gray-400"}`}>
-                            → {fmtDate(a.endTime)}
-                            {isEndingSoon && " ⚡"}
-                          </p>
-                        </td>
-
-                        {/* Bids */}
-                        <td className="px-4 py-3">
-                          <span
-                            className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                              a.bidCount > 0
-                                ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-400"
-                            }`}>
-                            {a.bidCount ?? 0} bids
-                          </span>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-4 py-3">
-                          <AuctionActions
-                            auction={a}
-                            onEdit={setEditingAuction}
-                            onSubmit={handleSubmitForReview}
-                            onDelete={handleDelete}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Pagination */}
-        <Pagination
-          pagination={pagination}
-          onPageChange={filters.setPage}
-          onLimitChange={filters.setLimit}
-          isLoading={isLoading}
-        />
+            {/* Pagination */}
+            <Pagination
+              pagination={pagination}
+              onPageChange={filters.setPage}
+              onLimitChange={filters.setLimit}
+              isLoading={isLoading}
+            />
+          </>
+        )}
       </div>
     </>
   );
@@ -811,7 +844,7 @@ const SellerDashboard = () => {
 // ══════════════════════════════════════════════════════════════════
 const AdminDashboard = () => {
   const { socket } = useSocket();
-  const [adminTab, setAdminTab] = useState("pending"); // "pending" | "all" | "sellers"
+  const [adminTab, setAdminTab] = useState("pending"); // 'pending' | 'all' | 'sellers'
 
   // Separate filter instances per tab — state preserved on tab switch
   const pendingFilters = useDashboardFilters();
@@ -1114,6 +1147,11 @@ const AdminDashboard = () => {
                 {pendingSellersCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => navigate("/analytics")}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all shrink-0 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700`}>
+            📊 Analytics
           </button>
         </div>
 

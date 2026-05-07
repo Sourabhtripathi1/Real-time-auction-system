@@ -3,6 +3,8 @@ import crypto from "crypto";
 import User from "../models/User.js";
 import TokenBlacklist from "../models/TokenBlacklist.js";
 import Auction from "../models/Auction.js";
+import AuctionView from "../models/AuctionView.js";
+import AuctionMetrics from "../models/AuctionMetrics.js";
 import { logUserJoinedAuction } from "../services/activityService.js";
 
 export const activeBidders = new Map();
@@ -46,7 +48,9 @@ function getViewerList(io, auctionId) {
       const socket = io.sockets.sockets.get(socketId);
       if (socket?.user) {
         // Prevent duplicates if user has multiple tabs open
-        if (!viewers.some((v) => v.id.toString() === socket.user._id.toString())) {
+        if (
+          !viewers.some((v) => v.id.toString() === socket.user._id.toString())
+        ) {
           viewers.push({
             id: socket.user._id,
             name: socket.user.name,
@@ -89,7 +93,9 @@ const socketHandler = (io) => {
         });
       } catch (jwtError) {
         if (jwtError.name === "TokenExpiredError") {
-          return next(new Error("AUTH_EXPIRED: Session expired. Please login again."));
+          return next(
+            new Error("AUTH_EXPIRED: Session expired. Please login again."),
+          );
         }
         return next(new Error("AUTH_INVALID: Invalid token"));
       }
@@ -152,7 +158,9 @@ const socketHandler = (io) => {
     // ── Join / Leave Global Activity Feed ────────────────────
     socket.on("joinGlobalFeed", () => {
       socket.join("global_activity");
-      console.log(`[Socket] User ${socket.user?._id} joined global_activity feed`);
+      console.log(
+        `[Socket] User ${socket.user?._id} joined global_activity feed`,
+      );
     });
 
     socket.on("leaveGlobalFeed", () => {
@@ -160,7 +168,7 @@ const socketHandler = (io) => {
     });
 
     // ── Join Auction Room ────────────────────────────────────
-    socket.on("joinAuction", async ({ auctionId }) => {
+    socket.on("joinAuction", async ({ auctionId, source = "direct" }) => {
       if (!auctionId) return;
 
       // Re-validate user on join (may have been blocked since connect)
@@ -179,9 +187,7 @@ const socketHandler = (io) => {
       }
       userRooms.get(socket.id).add(auctionId);
 
-      console.log(
-        `[Socket] ${socket.id} joined auction_${auctionId}`,
-      );
+      console.log(`[Socket] ${socket.id} joined auction_${auctionId}`);
 
       const viewers = getViewerList(io, auctionId);
       socket.emit("viewerList", {
@@ -209,6 +215,21 @@ const socketHandler = (io) => {
           }
         })
         .catch(() => {});
+
+      // Record view and update metrics
+      try {
+        await AuctionView.recordView({
+          auctionId,
+          userId: socket.user._id,
+          source: source,
+          sessionDuration: 0,
+          ipAddress: socket.handshake.address,
+          userAgent: socket.handshake.headers["user-agent"],
+        });
+        await AuctionMetrics.updateMetricsForAuction(auctionId);
+      } catch (e) {
+        console.error("[Socket] Record view failed:", e.message);
+      }
     });
 
     // ── Leave Auction Room ───────────────────────────────────
@@ -225,6 +246,30 @@ const socketHandler = (io) => {
 
       // Broadcast updated viewer count after leave
       broadcastViewerCount(io, auctionId);
+
+      // Update session duration and metrics
+      if (socket.user?._id) {
+        AuctionView.findOne({
+          auction: auctionId,
+          user: socket.user._id,
+        })
+          .sort({ viewedAt: -1 })
+          .then(async (view) => {
+            if (view) {
+              const sessionDuration =
+                (Date.now() - new Date(view.viewedAt).getTime()) / 1000;
+              view.sessionDuration += sessionDuration;
+              await view.save();
+              await AuctionMetrics.updateMetricsForAuction(auctionId);
+            }
+          })
+          .catch((e) =>
+            console.error(
+              "[Socket] Update session duration failed:",
+              e.message,
+            ),
+          );
+      }
     });
 
     // ── Disconnect — Comprehensive Cleanup ───────────────────

@@ -1,6 +1,7 @@
 import Auction from "../models/Auction.js";
 import Bid from "../models/Bid.js";
 import User from "../models/User.js";
+import AuctionMetrics from "../models/AuctionMetrics.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { paginateQuery, buildPaginationMeta } from "../utils/paginateQuery.js";
@@ -264,6 +265,11 @@ export const placeBid = async (req, res, next) => {
       previousBid,
     }).catch((e) =>
       console.error("[Bid] Activity log failed:", e.message),
+    );
+
+    // ── Update Auction Metrics ─────────────────────────────
+    AuctionMetrics.updateMetricsForAuction(auctionId).catch((err) =>
+      console.error("[Bid] Metrics update failed:", err.message),
     );
 
     // ── Response ───────────────────────────────────────────

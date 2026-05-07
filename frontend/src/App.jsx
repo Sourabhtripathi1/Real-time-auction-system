@@ -11,6 +11,7 @@ import AuctionRoom from "./pages/AuctionRoom";
 import Dashboard from "./pages/Dashboard";
 import Watchlist from "./pages/Watchlist";
 import ActivityPage from "./pages/ActivityPage";
+import AdminAnalyticsDashboard from "./pages/AdminAnalyticsDashboard";
 import Loader from "./components/Loader";
 
 // ── Guest Route wrapper ────────────────────────────────────
@@ -133,6 +134,15 @@ const AppLayout = () => {
               <ProtectedRoute>
                 <ActivityPage />
               </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/analytics"
+            element={
+              <RoleProtectedRoute allowedRoles={["admin"]}>
+                <AdminAnalyticsDashboard />
+              </RoleProtectedRoute>
             }
           />
 

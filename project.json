@@ -24,6 +24,7 @@
       "http": "Axios",
       "realtime": "Socket.io-client",
       "notifications": "React Toastify",
+      "charts": "Recharts",
       "state": "Context API"
     },
     "backend": {
@@ -75,7 +76,8 @@
       "dashboard_tabs": [
         "Pending Approvals",
         "All Auctions",
-        "Manage Sellers"
+        "Manage Sellers",
+        "Analytics"
       ],
       "restricted_pages": [
         "/auctions",

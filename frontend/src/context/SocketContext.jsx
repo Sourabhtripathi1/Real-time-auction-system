@@ -51,7 +51,8 @@ export const SocketProvider = ({ children }) => {
 
   const joinAuction = (auctionId, userId) => {
     if (socket.connected) {
-      socket.emit("joinAuction", { auctionId, userId });
+      const source = sessionStorage.getItem("auctionSource") || "direct";
+      socket.emit("joinAuction", { auctionId, userId, source });
     }
   };
 

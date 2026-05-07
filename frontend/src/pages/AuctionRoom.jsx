@@ -13,6 +13,8 @@ import ImageSlider from "../components/ImageSlider";
 import Loader from "../components/Loader";
 import LiveViewerList from "../components/LiveViewerList";
 import ActiveBiddersChip from "../components/ActiveBiddersChip";
+import { getAuctionMetrics } from "../services/metricsApi";
+import AuctionMetricsPanel from "../components/analytics/AuctionMetricsPanel";
 
 // ── Seller chip with avatar ────────────────────────────────
 const SellerChip = ({ seller }) => {
@@ -70,6 +72,7 @@ const AuctionRoom = () => {
   const [watchlistDone, setWatchlistDone] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [bidFlashConflict, setBidFlashConflict] = useState(false);
+  const [metrics, setMetrics] = useState(null);
 
   const {
     bidAmount,
@@ -115,6 +118,26 @@ const AuctionRoom = () => {
       }
     };
     load();
+  }, [auctionId]);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const data = await getAuctionMetrics(auctionId);
+        if (data.success) {
+          setMetrics(data.metrics);
+        }
+      } catch (error) {
+        console.error("Failed to fetch metrics:", error);
+      }
+    };
+
+    fetchMetrics();
+
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchMetrics, 30000);
+
+    return () => clearInterval(interval);
   }, [auctionId]);
 
   // Socket setup + reconnect handling
@@ -516,6 +539,16 @@ const AuctionRoom = () => {
             </div>
           </div>
         </div>
+
+        {/* ── Auction Performance Metrics ── */}
+        {metrics && (
+          <div className="mt-8">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              📊 Auction Performance
+            </h3>
+            <AuctionMetricsPanel metrics={metrics} auctionStatus={auction?.status} />
+          </div>
+        )}
       </div>
     </div>
   );
